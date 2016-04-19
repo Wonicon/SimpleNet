@@ -7,7 +7,8 @@
 //
 
 #include "seg.h"
-#include "stdio.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 //
 //
@@ -63,7 +64,9 @@ int seglost()
     int random = rand() % 100;
     if(random < PKT_LOSS_RATE * 100) {
         return 1;
-        else
-            return 0;
     }
+    else {
+        return 0;
+    }
+}
 
