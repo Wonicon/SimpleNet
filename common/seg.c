@@ -9,6 +9,8 @@
 #include "seg.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 
 //
 //
@@ -30,9 +32,29 @@
 //
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
-int sip_sendseg(int connection, seg_t* segPtr)
+
+#define SEG_BEGIN "!&"
+#define SEG_END   "!#"
+
+int sip_sendseg(int connection, seg_t *segptr)
 {
-    return 0;
+    if (send(connection, SEG_BEGIN, sizeof(SEG_BEGIN), 0) < sizeof(SEG_BEGIN)) {
+        return -1;
+    }
+
+    if (send(connection, &segptr->header, sizeof(segptr->header), 0) < sizeof(segptr->header)) {
+        return -1;
+    }
+
+    if (send(connection, segptr->data, segptr->header.length, 0) < segptr->header.length) {
+        return -1;
+    }
+
+    if (send(connection, SEG_END, sizeof(SEG_END), 0) < sizeof(SEG_END)) {
+        return -1;
+    }
+
+    return 1;
 }
 
 // 通过重叠网络(在本实验中，是一个TCP连接)接收STCP段. 我们建议你使用recv()一次接收一个字节.
