@@ -74,6 +74,7 @@ int stcp_server_sock(unsigned int server_port)
 
             tcb->server_portNum = server_port;
             tcb->client_portNum = -1;
+            tcb->state = CLOSED;
 
             // Init mutex
             tcb->bufMutex = malloc(sizeof(*tcb->bufMutex));
@@ -100,7 +101,24 @@ int stcp_server_sock(unsigned int server_port)
 
 int stcp_server_accept(int sockfd)
 {
-    return 0;
+    volatile server_tcb_t *tcb = tcbs[sockfd];
+
+    if (tcb == NULL) {
+        log("Invalid stcp socket %d", sockfd);
+        return 0;
+    }
+    else if (tcb->state != CLOSED) {
+        log("The state of this stcp socket is not CLOSED");
+        return 0;
+    }
+    else {
+        log("Shift state to LISTENING");
+        tcb->state = LISTENING;
+        // TODO 用条件变量？
+        while(tcb->state == LISTENING);
+        log("Establish connection");
+        return 1;
+    }
 }
 
 // 接收来自STCP客户端的数据
