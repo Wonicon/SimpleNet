@@ -1,29 +1,58 @@
-all: client/app_client.o server/app_server.o client/stcp_client.o server/stcp_server.o common/seg.o
-	gcc -g -pthread -I common server/app_server.o common/seg.o server/stcp_server.o -o server/lab5_server
-	gcc -g -pthread -I common client/app_client.o common/seg.o client/stcp_client.o -o client/lab5_client
+CC     := clang
+CFLAGS := -Wall -Werror -Wfatal-errors -std=gnu11 -g -O0 -pthread -I ./common
 
-server: server/app_server.o server/stcp_server.o common/seg.o
-	gcc -g -pthread -I common server/app_server.o common/seg.o server/stcp_server.o -o server/lab5_server
+PREFIX := lab5
 
-client: client/app_client.o client/stcp_client.o common/seg.o
-	gcc -g -pthread -I common client/app_client.o common/seg.o client/stcp_client.o -o client/lab5_client
+# Subdirectory definitions
+CLIENT := client
+SERVER := server
+COMMON := common
+BUILD  := build
 
-client/app_client.o: client/app_client.c
-	gcc -pthread -I common -g -c client/app_client.c -o client/app_client.o
-server/app_server.o: server/app_server.c
-	gcc -pthread -I common -g -c server/app_server.c -o server/app_server.o
+# Targets
+CLIENT_TARGET := $(CLIENT)/$(PREFIX)_$(CLIENT)
+SERVER_TARGET := $(SERVER)/$(PREFIX)_$(SERVER)
 
-common/seg.o: common/seg.c common/seg.h
-	gcc -g -c common/seg.c -o common/seg.o
-client/stcp_client.o: client/stcp_client.c client/stcp_client.h
-	gcc -pthread -I common -g -c client/stcp_client.c -o client/stcp_client.o
-server/stcp_server.o: server/stcp_server.c server/stcp_server.h
-	gcc -pthread -I common -g -c server/stcp_server.c -o server/stcp_server.o
+all: $(SERVER_TARGET) $(CLIENT_TARGET)
+
+# Source searching
+CLIENT_SRC := $(shell find $(CLIENT)/* -type f -name "*.c")
+SERVER_SRC := $(shell find $(SERVER)/* -type f -name "*.c")
+COMMON_SRC := $(shell find $(COMMON)/* -type f -name "*.c")
+
+# Objects
+CLIENT_OBJ := $(CLIENT_SRC:%.c=$(BUILD)/%.o)
+SERVER_OBJ := $(SERVER_SRC:%.c=$(BUILD)/%.o)
+COMMON_OBJ := $(COMMON_SRC:%.c=$(BUILD)/%.o)
+
+# Header dependencies
+CLIENT_DEP := $(CLIENT_SRC:%.c=$(BUILD)/%.d)
+SERVER_DEP := $(SERVER_SRC:%.c=$(BUILD)/%.d)
+COMMON_DEP := $(COMMON_SRC:%.c=$(BUILD)/%.d)
+
+-include $(CLIENT_DEP)
+-include $(SERVER_DEP)
+-include $(COMMON_DEP)
+
+# Colors
+green  := "\033[0;32m"
+orange := "\033[1;33m"
+end    := "\033[0m"
+
+$(CLIENT_TARGET): $(CLIENT_OBJ) $(COMMON_OBJ)
+	@echo $(orange)+ build $@$(end)
+	@$(CC) $(CFLAGS) -o $@ $^
+
+$(SERVER_TARGET): $(SERVER_OBJ) $(COMMON_OBJ)
+	@echo $(orange)+ build $@$(end)
+	@$(CC) $(CFLAGS) -o $@ $^
+
+$(BUILD)/%.o: %.c Makefile
+	@mkdir -p $(BUILD)/$(dir $<)
+	@echo $(green)+ compile $<$(end)
+	@$(CC) $(CFLAGS) -MD -c -o $@ $<
 
 clean:
-	rm -rf client/*.o
-	rm -rf server/*.o
-	rm -rf common/*.o
-	rm -rf client/lab5_client
-	rm -rf server/lab5_server
-
+	@rm -rf $(BUILD)
+	@rm -rf $(SERVER_TARGET)
+	@rm -rf $(CLIENT_TARGET)

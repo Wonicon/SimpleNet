@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
     srand(time(NULL));
 
     if (argc < 2) {
-        son_port = 4000;
+        son_port = SON_PORT;
     }
     else {
         int port = atoi(argv[1]);
