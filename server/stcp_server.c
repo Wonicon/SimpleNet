@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include "stcp_server.h"
 #include "../common/constants.h"
+#include "common.h"
 
 /*面向应用层的接口*/
 
@@ -24,9 +25,38 @@
 // 服务器只有一个seghandler.
 //
 
+/**
+ * @brief TCB 池
+ *
+ * MAX_TRANSPORT_CONNECTIONS 是支持的最大连接数
+ */
+static server_tcb_t *tcbs[MAX_TRANSPORT_CONNECTIONS];
+
+/**
+ * @brief 记录 seghandler 线程的 tid
+ */
+static pthread_t handler_tid;
+
+/**
+ * @brief 记录模拟网络层所使用的连接套接字
+ */
+static int son_connection;
+
+/**
+ * @brief 启动 STCP 协议栈
+ */
 void stcp_server_init(int conn)
 {
-    return;
+    // 初始化 TCB 池
+    for (int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
+        tcbs[i] = NULL;
+    }
+    log("TCB pool has been initialized.");
+
+    // 启动接受网络层报文段的线程
+    son_connection = conn;
+    pthread_create(&handler_tid, NULL, seghandler, NULL);
+    log("seghandler started.");
 }
 
 // 创建服务器套接字
