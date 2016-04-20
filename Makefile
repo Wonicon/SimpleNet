@@ -10,10 +10,14 @@ COMMON := common
 BUILD  := build
 
 # Targets
-CLIENT_TARGET := $(CLIENT)/$(PREFIX)_$(CLIENT)
-SERVER_TARGET := $(SERVER)/$(PREFIX)_$(SERVER)
+CLIENT_TARGET := $(PREFIX)_$(CLIENT)
+SERVER_TARGET := $(PREFIX)_$(SERVER)
 
 all: $(SERVER_TARGET) $(CLIENT_TARGET)
+
+client: $(CLIENT_TARGET)
+
+server: $(SERVER_TARGET)
 
 # Source searching
 CLIENT_SRC := $(shell find $(CLIENT)/* -type f -name "*.c")
