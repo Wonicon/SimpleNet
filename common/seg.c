@@ -7,6 +7,7 @@
 //
 
 #include "seg.h"
+#include "network.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -76,9 +77,38 @@ int sip_sendseg(int connection, seg_t *segptr)
 //
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
-int sip_recvseg(int connection, seg_t* segPtr)
+int sip_recvseg(int connection, seg_t *segptr)
 {
-    return 0;
+    char indicator;        // 是否开始读取 boundary_markup
+    char boundary_markup;  // 标记界限字符的类型
+
+    // 找到 "!&" 起始标记
+    do {
+        Recv(connection, &indicator, sizeof(indicator));
+    } while (indicator != '!');
+    Recv(connection, &boundary_markup, sizeof(boundary_markup));
+    if (boundary_markup != '&') {
+        return 0;  // 段损坏
+    }
+
+    // 读取段
+    Recv(connection, &segptr->header, sizeof(segptr->header));
+    Recv(connection, segptr->data, sizeof(*segptr->data) * segptr->header.length);
+
+    // 检查结束标记 "!#"
+    indicator = '\0';
+    Recv(connection, &indicator, sizeof(indicator));
+    if (indicator != '!') {
+        return 0;
+    }
+
+    Recv(connection, &boundary_markup, sizeof(boundary_markup));
+    if (boundary_markup != '#') {
+        return 0;
+    }
+
+    //return seglost();
+    return 1;
 }
 
 int seglost()
@@ -91,4 +121,3 @@ int seglost()
         return 0;
     }
 }
-
