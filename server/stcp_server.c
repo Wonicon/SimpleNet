@@ -103,6 +103,73 @@ int stcp_server_close(int sockfd)
     return 0;
 }
 
+/**
+ * @brief 发送控制报文
+ */
+static inline void
+send_ctrl(unsigned short type, unsigned short src_port, unsigned short dst_port)
+{
+    seg_t synack = {
+        .header.src_port = src_port,
+        .header.dest_port = dst_port,
+        .header.length = 0,
+        .header.type = type,
+    };
+    if (sip_sendseg(son_connection, &synack) == -1) {
+        log("sending ctrl to port %d failed", dst_port);
+    }
+}
+
+/**
+ * @brief TCB 状态机
+ */
+static void server_fsm(server_tcb_t *tcb, seg_t *seg)
+{
+    // TODO lock !?
+    switch (tcb->state) {
+    case CLOSED:
+        log("Unexpected CLOSE state");
+        break;
+    case LISTENING:
+        switch (seg->header.type) {
+        case SYN:
+            send_ctrl(SYNACK, seg->header.dest_port, seg->header.src_port);
+            tcb->state = CONNECTED;
+            log("Enter CONNECTED state");
+            break;
+        default:
+            log("Unexpected segment type %02x for LISTENING state", seg->header.type);
+        }
+        break;
+    case CONNECTED:
+        switch (seg->header.type) {
+        case SYN:
+            send_ctrl(SYNACK, seg->header.dest_port, seg->header.src_port);
+            log("Receive duplicated SYN request");
+            break;
+        case FIN:
+            send_ctrl(FINACK, seg->header.dest_port, seg->header.src_port);
+            // TODO timer !!!
+            tcb->state = CLOSEWAIT;
+            log("Enter CLOSEWAIT state");
+            break;
+        }
+        break;
+    case CLOSEWAIT:
+        switch (seg->header.type) {
+        case FIN:
+            send_ctrl(FINACK, seg->header.dest_port, seg->header.src_port);
+            log("Receive duplicated FIN request");
+            break;
+        default:
+            log("Unexpected segment type %02x for CLOSEWAIT state", seg->header.type);
+        }
+        break;
+    default:
+        log("Unexpected tcb state");
+    }
+}
+
 // 处理进入段的线程
 //
 // 这是由stcp_server_init()启动的线程. 它处理所有来自客户端的进入数据. seghandler被设计为一个调用sip_recvseg()的无穷循环,
@@ -112,5 +179,17 @@ int stcp_server_close(int sockfd)
 
 void *seghandler(void* arg)
 {
-    return 0;
+    for (;;) {
+        seg_t seg = {};
+        sip_recvseg(son_connection, &seg);
+
+        // Search & forward.
+        // TODO non-block!!!
+        for (int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
+            if (tcbs[i] && tcbs[i]->server_portNum == seg.header.dest_port) {
+                server_fsm(tcbs[i], &seg);
+            }
+        }
+    }
+    return arg;
 }

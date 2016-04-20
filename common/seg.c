@@ -47,7 +47,7 @@ int sip_sendseg(int connection, seg_t *segptr)
         return -1;
     }
 
-    if (send(connection, segptr->data, segptr->header.length, 0) < segptr->header.length) {
+    if (segptr->header.length > 0 && send(connection, segptr->data, segptr->header.length, 0) < segptr->header.length) {
         return -1;
     }
 
