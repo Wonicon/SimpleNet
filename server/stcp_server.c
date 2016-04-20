@@ -35,7 +35,7 @@ static server_tcb_t *tcbs[MAX_TRANSPORT_CONNECTIONS];
 /**
  * @brief 记录 seghandler 线程的 tid
  */
-static pthread_t handler_tid;
+pthread_t handler_tid;
 
 /**
  * @brief 记录模拟网络层所使用的连接套接字
@@ -68,7 +68,27 @@ void stcp_server_init(int conn)
 
 int stcp_server_sock(unsigned int server_port)
 {
-    return 0;
+    for (int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
+        if (tcbs[i] == NULL) {
+            server_tcb_t *tcb = calloc(1, sizeof(*tcb));
+
+            tcb->server_portNum = server_port;
+            tcb->client_portNum = -1;
+
+            // Init mutex
+            tcb->bufMutex = malloc(sizeof(*tcb->bufMutex));
+            pthread_mutex_init(tcb->bufMutex, NULL);
+
+            log("Assign socket %d to port %d", i, server_port);
+            tcbs[i] = tcb;
+
+            // Socket
+            return i;
+        }
+    }
+
+    // No socket available.
+    return -1;
 }
 
 // 接受来自STCP客户端的连接
@@ -100,6 +120,17 @@ int stcp_server_recv(int sockfd, void* buf, unsigned int length)
 
 int stcp_server_close(int sockfd)
 {
+    server_tcb_t *tcb = tcbs[sockfd];
+    tcbs[sockfd] = NULL;
+
+    // 不需要使用 pthread_mutex_destroy ?
+    free(tcb->bufMutex);
+    if (tcb->recvBuf) {
+        free(tcb->recvBuf);
+    }
+    free(tcb);
+
+    // TODO 何时返回 -1 ?
     return 0;
 }
 
