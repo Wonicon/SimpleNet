@@ -212,7 +212,15 @@ void *seghandler(void* arg)
 {
     for (;;) {
         seg_t seg = {};
-        sip_recvseg(son_connection, &seg);
+        int result = sip_recvseg(son_connection, &seg);
+        if (result == -1) {
+            // 收到了模拟 SON 的 TCP 的断开连接请求。
+            break;
+        }
+        else if (result == 1) {
+            // 丢包
+            continue;
+        }
 
         // Search & forward.
         // TODO non-block!!!

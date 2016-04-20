@@ -70,14 +70,16 @@ int son_start()
     listen(fd, 5);
 
     // 只需要一个连接。
-    struct sockaddr_in inaddr;  // useless
-    socklen_t inaddr_len;       // useless
+    struct sockaddr_in inaddr = {};  // useless
+    socklen_t inaddr_len = 0;        // useless
     return accept(fd, (struct sockaddr *)&inaddr, &inaddr_len);
 }
 
 //这个函数通过关闭客户和服务器之间的TCP连接来停止重叠网络层
 void son_stop(int son_conn)
 {
+    // 使用 shutdown 可以让别的线程中陷入阻塞的 socket IO 直接返回。
+    shutdown(son_conn, SHUT_RDWR);
     close(son_conn);
     // 在进程退出后自动关闭监听套接字。
 }
@@ -143,6 +145,11 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
+
     //停止重叠网络层
     son_stop(son_conn);
+
+    // 不等一下的话，valgrind 会报告来自 pthread 的内存泄露。
+    extern pthread_t handler_tid;
+    pthread_join(handler_tid, NULL);
 }

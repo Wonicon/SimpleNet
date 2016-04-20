@@ -84,7 +84,9 @@ int sip_recvseg(int connection, seg_t *segptr)
 
     // 找到 "!&" 起始标记
     do {
-        Recv(connection, &indicator, sizeof(indicator));
+        if (!Recv(connection, &indicator, sizeof(indicator))) {
+            return -1;
+        }
     } while (indicator != '!');
     Recv(connection, &boundary_markup, sizeof(boundary_markup));
     if (boundary_markup != '&') {
