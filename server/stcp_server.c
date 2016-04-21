@@ -44,6 +44,7 @@ static int son_connection;
 
 /**
  * @brief 启动 STCP 协议栈
+ * @param conn 模拟 SON 的连接套接字
  */
 void stcp_server_init(int conn)
 {
