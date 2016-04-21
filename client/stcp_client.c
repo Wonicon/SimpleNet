@@ -26,9 +26,26 @@
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
 
+//tcb连接池
+static client_tcb_t *tcbs[MAX_TRANSPORT_CONNECTIONS];
+
+//记录模拟网络层所使用的连接套接字
+static int son_connection;
+
+//记录seghandler线程的tid
+pthread_t handler_tid;
+
 void stcp_client_init(int conn)
 {
-    return;
+	for(int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
+		tcbs[i] = NULL;
+	}
+	log("client TCB pool has been initialized.");
+
+	//启动接收网络层报文段的线程
+	son_connection = conn;
+	pthread_create(&handler_tid, NULL, seghandler, NULL);
+	log("seghandler started.");
 }
 
 // 创建一个客户端TCB条目, 返回套接字描述符
@@ -43,7 +60,28 @@ void stcp_client_init(int conn)
 
 int stcp_client_sock(unsigned int client_port)
 {
-    return 0;
+	for(int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
+		if(tcbs[i] == NULL) {
+			client_tcb_t *tcb = calloc(1, sizeof(*tcb));
+
+			tcb->client_portNum = client_port;
+			tcb->server_portNum = -1;
+			tcb->state = CLOSED;
+
+			//init mutex
+			tcb->bufMutex = malloc(sizeof(*tcb->bufMutex));
+			pthread_mutex_init(tcb->bufMutex, NULL);
+
+			log("Assign socket %d to port %d", i, client_port);
+			tcbs[i] = tcb;
+
+			//socket num
+			return i;
+		}
+	}
+
+	//没有找到条目
+    return -1;
 }
 
 // 连接STCP服务器
@@ -110,9 +148,42 @@ int stcp_client_close(int sockfd)
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
 
+//发送报文
+static inline void
+send_ctrl(unsigned short type, unsigned short src_port, unsigned short dst_port) {
+	seg_t syn = {
+		.header.src_port = src_port,
+		.header.dest_port = dst_port,
+		.header.length = 0;
+		.header.type = type,
+	};
+	if(sip_sendseg(son_connection, &syn) == -1) {
+		log("sending ctrl to port %d failed", dst_port);
+	}
+}
+
 void *seghandler(void* arg)
 {
-    return 0;
+	for(;;) {
+		seg_t seg = {};
+		int result = sip_recvseg(son_connection, &seg);
+		if(result == -1) {
+			//断开连接
+			break;
+		}
+		else if(result == 1) {
+			//丢包
+			continue;
+		}
+		
+		for(int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
+			if(tcbs[i] && tcbs[i]->client_portNum == seg.header.dest_port) {
+				client_fsm(tcbs[i], &seg);
+			}
+		}
+	}
+
+    return arg;
 }
 
 

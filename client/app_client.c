@@ -32,23 +32,53 @@
 #define WAITTIME 5
 
 //这个函数通过在客户和服务器之间创建TCP连接来启动重叠网络层. 它返回TCP套接字描述符, STCP将使用该描述符发送段. 如果TCP连接失败, 返回-1.
-int son_start()
+
+static short son_port = 0;
+
+int son_start(char *serv_ip)
 {
-    return -1;
+	//创建套接字
+	int fd = socket(AF_INET, SOCK_STREAM, 0);
+	if(fd < 0) {
+		sys_panic("socket");
+	}
+
+	struct sockaddr_in serv_addr = {
+		.sin_family      = AF_INET,
+		.sin_addr.s_addr = inet_addr(serv_ip),
+		.sin_port        = htons(son_port),
+	};
+
+	return connect(sockfd,(struct sockaddr*)&serv_addr,sizeof(serv_addr));
 }
 
 //这个函数通过关闭客户和服务器之间的TCP连接来停止重叠网络层
 void son_stop(int son_conn)
 {
+	close(son_conn);
 }
 
-int main()
+int main(int argc, char *argv[])
 {
     //用于丢包率的随机数种子
     srand(time(NULL));
 
+	if(argc < 3) {
+		son_port = SON_PORT;
+	}
+	else {
+		int port = atoi(argv[2]);
+		if(!(port > 0 && port < SHRT_MAX)) {
+			panic("%d exceeds short limit", port);
+		}
+		else
+			son_port = (short)port;
+	}
+
+	printf("start son on port %d", son_port);
+
     //启动重叠网络层并获取重叠网络层TCP套接字描述符
-    int son_conn = son_start();
+    int son_conn = son_start(argv[1]);
     if(son_conn < 0) {
         printf("fail to start overlay network\n");
         exit(1);
