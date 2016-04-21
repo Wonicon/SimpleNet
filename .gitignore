@@ -3,5 +3,5 @@
 !*/
 !Makefile
 !README
-!.[ch]
+!*.[ch]
 !.gitignore
