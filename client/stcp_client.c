@@ -4,6 +4,7 @@
 #include <sys/time.h>
 #include <time.h>
 #include <pthread.h>
+#include <netinet/in.h>
 #include "stcp_client.h"
 #include "common.h"
 
@@ -89,10 +90,10 @@ int stcp_client_sock(unsigned int client_port)
 static inline void
 send_ctrl(unsigned short type, unsigned short src_port, unsigned short dst_port) {
 	seg_t syn = {
-		.header.src_port = src_port,
-		.header.dest_port = dst_port,
-		.header.length = 0,
-		.header.type = type,
+		.header.src_port = htonl(src_port),
+		.header.dest_port = htonl(dst_port),
+		.header.length = htons(0),
+		.header.type = htons(type),
 	};
 	if(sip_sendseg(son_connection, &syn) == -1) {
 		log("sending ctrl to port %d failed", dst_port);
@@ -125,19 +126,21 @@ int stcp_client_connect(int sockfd, unsigned int server_port)
 		tcb->server_portNum = server_port;
 		tcb->state = SYNSENT;
 		log("Shift state to SYNSENT");
+		log("client_port = %d,server_port = %d",tcb->client_portNum, server_port);
 
-		//设置定时并等待一段时间
-		int i;
-		for(i = 0; i < SYN_MAX_RETRY; i++) {
-			send_ctrl(SYN, server_port, tcb->client_portNum);
+		//TO DO:设置定时并等待一段时间
+		//int i;
+		//for(i = 0; i < SYN_MAX_RETRY; i++) {
+			send_ctrl(SYN, tcb->client_portNum, server_port);
+			log("finish send");
 			//TO DO：等待一段时间
 			while(tcb->state == SYNSENT);
 			if(tcb->state == CONNECTED)
 				return 1;
-		}
+		//}
 
-		if(i == SYN_MAX_RETRY)
-			tcb->state = CLOSED;
+		//if(i == SYN_MAX_RETRY)
+		//	tcb->state = CLOSED;
 
 		return -1;
 	}

@@ -39,6 +39,7 @@
 
 int sip_sendseg(int connection, seg_t *segptr)
 {
+	//log("%ld,%ld",sizeof(SEG_BEGIN),sizeof("!&"));
     if (send(connection, SEG_BEGIN, sizeof(SEG_BEGIN), 0) < sizeof(SEG_BEGIN)) {
         return -1;
     }
@@ -95,6 +96,7 @@ int sip_recvseg(int connection, seg_t *segptr)
 
     // 读取段
     Recv(connection, &segptr->header, sizeof(segptr->header));
+	log("src_port = %d, server_port = %d, seq_num = %d",segptr->header.src_port,segptr->header.dest_port,segptr->header.seq_num);
     Recv(connection, segptr->data, sizeof(*segptr->data) * segptr->header.length);
 
     // 检查结束标记 "!#"

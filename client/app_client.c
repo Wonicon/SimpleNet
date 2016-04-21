@@ -52,7 +52,10 @@ int son_start(char *serv_ip)
 		.sin_port        = htons(son_port),
 	};
 
-	return connect(fd,(struct sockaddr*)&serv_addr,sizeof(serv_addr));
+	if(connect(fd,(struct sockaddr*)&serv_addr,sizeof(serv_addr)) < 0)
+		sys_panic("connect");
+
+	return fd;
 }
 
 //这个函数通过关闭客户和服务器之间的TCP连接来停止重叠网络层
@@ -79,7 +82,7 @@ int main(int argc, char *argv[])
 			son_port = (short)port;
 	}
 
-	printf("start son on port %d", son_port);
+	printf("start son on port %d\n", son_port);
 
     //启动重叠网络层并获取重叠网络层TCP套接字描述符
     int son_conn = son_start(argv[1]);
