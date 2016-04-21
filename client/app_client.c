@@ -55,6 +55,7 @@ int son_start(char *serv_ip)
 //这个函数通过关闭客户和服务器之间的TCP连接来停止重叠网络层
 void son_stop(int son_conn)
 {
+	shutdown(son_conn, SHUT_RDWR);
 	close(son_conn);
 }
 

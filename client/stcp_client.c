@@ -96,6 +96,36 @@ int stcp_client_sock(unsigned int client_port)
 
 int stcp_client_connect(int sockfd, unsigned int server_port)
 {
+	client_tcb_t *tcb = tcbs[sockfd];
+
+	if(tcb == NULL) {
+		log("Invalid stcp socket %d",sockfd);
+		return 0;
+	}
+	else if(tcb->state != CLOSED) {
+		log("The state of this stcp socket is not CLOSED");
+		return 0;
+	}
+	else {
+		tcb->server_portNum = server_port;
+		tcb->state = SYNSENT;
+		log("Shift state to SYNSENT");
+
+		//设置定时并等待一段时间
+		int i;
+		for(i = 0; i < SYN_MAX_RETRY; i++) {
+			send_ctrl(SYN, server_port, tcb->client_portNum);
+			//TO DO：等待一段时间
+			while(tcb->state == SYNSENT);
+			if(tcb->state == CONNECTED)
+				return 1;
+		}
+
+		if(i == SYN_MAX_RETRY)
+			tcb->state = CLOSED;
+
+		return -1;
+	}
     return 0;
 }
 
@@ -123,6 +153,22 @@ int stcp_client_send(int sockfd, void* data, unsigned int length)
 
 int stcp_client_disconnect(int sockfd)
 {
+	client_tcb_t *tcb = tcbs[sockfd];
+
+	if(tcb == NULL) {
+		log("Invalid stcp socket %d", sockfd);
+		return 0;
+	}
+	else if(tcb->state != CONNECTED) {
+		log("The state of this stcp socket is not CONNECTED");
+		return 0;
+	}
+	else {
+		log("Shift state to FINWAIT");
+		tcb->state = FINWAIT;
+
+		//设置等待时间
+	}
     return 0;
 }
 
@@ -136,17 +182,49 @@ int stcp_client_disconnect(int sockfd)
 
 int stcp_client_close(int sockfd)
 {
+	client_tcb_t *tcb = tcbs[sockfd];
+	tcbs[sockfd] = NULL;
+
+	//pthread_mutex_destory?
+	free(tcb->bufMutex);
+	if(tcb->recvBuf) {
+		free(tcb->recvBuf);
+	}
+	free(tcb);
+
     return 0;
 }
 
-// 处理进入段的线程
-//
-// 这是由stcp_client_init()启动的线程. 它处理所有来自服务器的进入段.
-// seghandler被设计为一个调用sip_recvseg()的无穷循环. 如果sip_recvseg()失败, 则说明重叠网络连接已关闭,
-// 线程将终止. 根据STCP段到达时连接所处的状态, 可以采取不同的动作. 请查看客户端FSM以了解更多细节.
-//
-//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-//
+//客户端状态机
+static void client_fsm(client_tcb_t *tcb, seg_t *seg) {
+	switch(tcb->state) {
+		case CLOSED:
+			log("Unexpected CLOSE state");
+			break;
+		case SYNSENT: 
+			switch(seg->header.type) {
+				case SYNACK:
+					tcb->state = CONNECTED;
+					log("Enter CONNECTED state");
+					break;
+				default:
+					log("Unexpect segment type %02x for SYNSENT state",seg->header.type);
+			}
+			break;
+		case CONNECTED:
+		case FINWAIT: 
+			switch(seg->header.type) {
+				case FINACK:
+					tcb->state = CLOSED;
+					log("return closed state");
+					break;
+				default:
+					log("Unexpect segment type %02x for FINWAIT state",seg->header.type);
+			}
+			break;
+		default:
+			log("Unexpect tcb state");
+}
 
 //发送报文
 static inline void
@@ -162,6 +240,14 @@ send_ctrl(unsigned short type, unsigned short src_port, unsigned short dst_port)
 	}
 }
 
+// 处理进入段的线程
+//
+// 这是由stcp_client_init()启动的线程. 它处理所有来自服务器的进入段.
+// seghandler被设计为一个调用sip_recvseg()的无穷循环. 如果sip_recvseg()失败, 则说明重叠网络连接已关闭,
+// 线程将终止. 根据STCP段到达时连接所处的状态, 可以采取不同的动作. 请查看客户端FSM以了解更多细节.
+//
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//
 void *seghandler(void* arg)
 {
 	for(;;) {
