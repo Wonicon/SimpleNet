@@ -5,6 +5,7 @@
 #include <time.h>
 #include <pthread.h>
 #include "stcp_client.h"
+#include "common.h"
 
 /*面向应用层的接口*/
 
@@ -82,6 +83,20 @@ int stcp_client_sock(unsigned int client_port)
 
 	//没有找到条目
     return -1;
+}
+
+//发送报文
+static inline void
+send_ctrl(unsigned short type, unsigned short src_port, unsigned short dst_port) {
+	seg_t syn = {
+		.header.src_port = src_port,
+		.header.dest_port = dst_port,
+		.header.length = 0,
+		.header.type = type,
+	};
+	if(sip_sendseg(son_connection, &syn) == -1) {
+		log("sending ctrl to port %d failed", dst_port);
+	}
 }
 
 // 连接STCP服务器
@@ -187,9 +202,9 @@ int stcp_client_close(int sockfd)
 
 	//pthread_mutex_destory?
 	free(tcb->bufMutex);
-	if(tcb->recvBuf) {
-		free(tcb->recvBuf);
-	}
+	if(tcb->sendBufHead) free(tcb->sendBufHead);
+	if(tcb->sendBufunSent) free(tcb->sendBufunSent);
+	if(tcb->sendBufTail) free(tcb->sendBufTail);
 	free(tcb);
 
     return 0;
@@ -224,19 +239,6 @@ static void client_fsm(client_tcb_t *tcb, seg_t *seg) {
 			break;
 		default:
 			log("Unexpect tcb state");
-}
-
-//发送报文
-static inline void
-send_ctrl(unsigned short type, unsigned short src_port, unsigned short dst_port) {
-	seg_t syn = {
-		.header.src_port = src_port,
-		.header.dest_port = dst_port,
-		.header.length = 0;
-		.header.type = type,
-	};
-	if(sip_sendseg(son_connection, &syn) == -1) {
-		log("sending ctrl to port %d failed", dst_port);
 	}
 }
 
@@ -245,11 +247,8 @@ send_ctrl(unsigned short type, unsigned short src_port, unsigned short dst_port)
 // 这是由stcp_client_init()启动的线程. 它处理所有来自服务器的进入段.
 // seghandler被设计为一个调用sip_recvseg()的无穷循环. 如果sip_recvseg()失败, 则说明重叠网络连接已关闭,
 // 线程将终止. 根据STCP段到达时连接所处的状态, 可以采取不同的动作. 请查看客户端FSM以了解更多细节.
-//
-//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-//
-void *seghandler(void* arg)
-{
+
+void *seghandler(void* arg){
 	for(;;) {
 		seg_t seg = {};
 		int result = sip_recvseg(son_connection, &seg);

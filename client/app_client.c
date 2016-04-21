@@ -20,7 +20,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <time.h>
+#include <limits.h>
 #include "../common/constants.h"
+#include "../common/common.h"
 #include "stcp_client.h"
 
 //创建两个连接, 一个使用客户端端口号87和服务器端口号88. 另一个使用客户端端口号89和服务器端口号90
@@ -49,7 +52,7 @@ int son_start(char *serv_ip)
 		.sin_port        = htons(son_port),
 	};
 
-	return connect(sockfd,(struct sockaddr*)&serv_addr,sizeof(serv_addr));
+	return connect(fd,(struct sockaddr*)&serv_addr,sizeof(serv_addr));
 }
 
 //这个函数通过关闭客户和服务器之间的TCP连接来停止重叠网络层
