@@ -41,19 +41,19 @@
 
 int sip_sendseg(int connection, seg_t *segptr)
 {
-    if (send(connection, SEG_BEGIN, SEG_BEGIN_LEN, 0) < SEG_BEGIN_LEN) {
+    if (send(connection, SEG_BEGIN, SEG_BEGIN_LEN, 0) == -1) {
         return -1;
     }
 
-    if (send(connection, &segptr->header, sizeof(segptr->header), 0) < sizeof(segptr->header)) {
+    if (send(connection, &segptr->header, sizeof(segptr->header), 0) == -1) {
         return -1;
     }
 
-    if (segptr->header.length > 0 && send(connection, segptr->data, segptr->header.length, 0) < segptr->header.length) {
+    if (segptr->header.length > 0 && send(connection, segptr->data, segptr->header.length, 0) == -1) {
         return -1;
     }
 
-    if (send(connection, SEG_END, SEG_END_LEN, 0) < SEG_END_LEN) {
+    if (send(connection, SEG_END, SEG_END_LEN, 0) == -1) {
         return -1;
     }
 
