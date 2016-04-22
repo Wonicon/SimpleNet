@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <sys/time.h>
 #include <time.h>
 #include <pthread.h>
@@ -128,19 +129,38 @@ int stcp_client_connect(int sockfd, unsigned int server_port)
         log("Shift state to SYNSENT");
         log("client_port = %d,server_port = %d",tcb->client_portNum, server_port);
 
-        //TO DO:设置定时并等待一段时间
-        //int i;
-        //for(i = 0; i < SYN_MAX_RETRY; i++) {
-        send_ctrl(SYN, tcb->client_portNum, server_port);
-        log("finish send");
-        //TO DO：等待一段时间
-        while(tcb->state == SYNSENT);
-        if(tcb->state == CONNECTED)
-            return 1;
-        //}
+        //设置定时并等待一段时间
+		fd_set testfds;
+		/*struct timeval timeout = {
+			.tv_sec = 0,
+			.tv_usec = SYN_TIMEOUT / 1000 //等待SYN_TIMEOUT纳秒的时间
+		};*/
 
-        //if(i == SYN_MAX_RETRY)
-        //	tcb->state = CLOSED;
+        int i;
+        for(i = 0; i < SYN_MAX_RETRY; i++) {
+			FD_ZERO(&testfds);
+			FD_SET(0, &testfds);
+			struct timeval timeout = {
+				.tv_sec = 0,
+				.tv_usec = SYN_TIMEOUT / 1000
+			};
+
+			send_ctrl(SYN, tcb->client_portNum, server_port);
+			log("finish send and wait SYNACK---%d try" ,i + 1);
+			//直接等待一段时间后判断是否接收到报文
+			select(FD_SETSIZE, &testfds, (fd_set *)NULL, (fd_set *)NULL, &timeout);
+			if(tcb->state == CONNECTED) {
+				log("recvive SYNACK!");
+				return 1;
+			}
+			else { 
+				log("%d try timeout", i + 1);
+			}
+        }
+
+        //超时没有接收到连接，回到CLOSED状态
+        tcb->state = CLOSED;
+		log("NO SYNACK, return CLOSED");
 
         return -1;
     }
@@ -186,6 +206,32 @@ int stcp_client_disconnect(int sockfd)
         tcb->state = FINWAIT;
 
         //设置等待时间
+		int i;
+		fd_set testfds;
+		for(i = 0; i < FIN_MAX_RETRY; i++) {
+			FD_ZERO(&testfds);
+			FD_SET(0, &testfds);
+			struct timeval timeout = {
+				.tv_sec = 0,
+				.tv_usec = FIN_TIMEOUT / 1000
+			};
+
+			send_ctrl(FIN,tcb->client_portNum, tcb->server_portNum);
+			log("finish send FIN and wait FINACK -- %d try", i + 1);
+			select(FD_SETSIZE, &testfds, (fd_set *)NULL, (fd_set *)NULL, &timeout);
+			if(tcb->state == CLOSED) {
+				log("receive FINACK");
+				return 1;
+			}
+			else {
+				log("%d try timeout", i + 1);
+			}
+		}
+
+		//超时没有收到FINACK
+		tcb->state = CLOSED;
+		log("NO FINACK, return CLOSED");
+		return -1;
     }
     return 0;
 }

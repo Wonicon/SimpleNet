@@ -114,8 +114,8 @@ int sip_recvseg(int connection, seg_t *segptr)
         return 0;
     }
 
-    //return seglost();
-    return 0;
+    return seglost();
+    //return 0;
 }
 
 int seglost()
