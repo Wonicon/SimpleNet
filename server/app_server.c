@@ -62,6 +62,12 @@ int son_start()
         .sin_port        = htons(son_port),
     };
 
+    // 使得退出后可以立即使用旧端口，方便调试
+    int enable = 1;
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) == -1) {
+        sys_panic("setsockopt SO_REUSEADDR");
+    }
+
     if (bind(fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr))) {
         sys_panic("bind");
     }
