@@ -54,7 +54,7 @@ $(SERVER_TARGET): $(SERVER_OBJ) $(COMMON_OBJ)
 $(BUILD)/%.o: %.c Makefile
 	@mkdir -p $(BUILD)/$(dir $<)
 	@echo $(green)+ compile $<$(end)
-	@$(CC) $(CFLAGS) -MD -c -o $@ $<
+	@$(CC) $(CFLAGS) -MMD -c -o $@ $<
 
 clean:
 	@rm -rf $(BUILD)

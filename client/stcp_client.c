@@ -1,13 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <sys/socket.h>
-#include <sys/time.h>
-#include <time.h>
 #include <pthread.h>
-#include <netinet/in.h>
 #include "stcp_client.h"
 #include "common.h"
-#include "seg.h"
 
 /*面向应用层的接口*/
 
@@ -139,8 +134,11 @@ int stcp_client_connect(int sockfd, unsigned int server_port)
         tcb->state = SYNSENT;
         log("Shift state to SYNSENT");
 
-        //for(int i = 0; i < SYN_MAX_RETRY; i++) {
+#ifndef ENDLESS_RETRY
+        for (int i = 0; i < SYN_MAX_RETRY; i++) {
+#else
         for (;;) {
+#endif
             send_ctrl(SYN, tcb->client_portNum, server_port);
 
             tcb->timeout.tv_sec = SYN_TIMEOUT / 1000000000;
@@ -160,7 +158,6 @@ int stcp_client_connect(int sockfd, unsigned int server_port)
         log("oops, syn failed.");
         return -1;
     }
-    return 0;
 }
 
 // 发送数据给STCP服务器
@@ -199,12 +196,16 @@ int stcp_client_disconnect(int sockfd)
     }
     else {
         log("Shift state to FINWAIT");
-        send_ctrl(FIN, tcb->client_portNum, tcb->server_portNum);
         tcb->state = FINWAIT;
 
         //设置等待时间
-        //for (int i = 0; i < FIN_MAX_RETRY; i++) {
+#ifndef ENDLESS_RETRY
+        for (int i = 0; i < FIN_MAX_RETRY; i++) {
+#else
         for (;;) {
+#endif
+            send_ctrl(FIN, tcb->client_portNum, tcb->server_portNum);
+
             tcb->timeout.tv_sec = FIN_TIMEOUT / 1000000000;
             tcb->timeout.tv_usec = (FIN_TIMEOUT % 1000000000) / 1000000;
             tcb->is_time_out = 0;
@@ -292,18 +293,22 @@ void *seghandler(void* arg) {
     for(;;) {
         seg_t seg = {};
         int result = sip_recvseg(son_connection, &seg);
-        if(result == -1) {
-            //断开连接
+        if (result == -1) {
+            // 收到了模拟 SON 的 TCP 的断开连接请求。
+            log("son closed");
+            son_connection = -1;
             break;
         }
-        else if(result == 1) {
-            //丢包
+        else if (result == 1) {
+            // 丢包
+            log("missing packet");
             continue;
         }
 
         for(int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
             if(tcbs[i] && tcbs[i]->client_portNum == seg.header.dest_port) {
                 client_fsm(tcbs[i], &seg);
+                break;  // efficiency!
             }
         }
     }

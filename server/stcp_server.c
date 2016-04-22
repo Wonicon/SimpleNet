@@ -297,8 +297,6 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
 // 如果sip_recvseg()失败, 则说明重叠网络连接已关闭, 线程将终止. 根据STCP段到达时连接所处的状态, 可以采取不同的动作.
 // 请查看服务端FSM以了解更多细节.
 //
-
-static void bp() {}
 void *seghandler(void* arg)
 {
     for (;;) {
@@ -313,7 +311,6 @@ void *seghandler(void* arg)
         else if (result == 1) {
             // 丢包
             log("missing packet");
-            bp();
             continue;
         }
 

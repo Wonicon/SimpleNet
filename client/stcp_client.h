@@ -9,7 +9,7 @@
 #define STCPCLIENT_H
 
 #include <pthread.h>
-#include "../common/seg.h"
+#include "seg.h"
 
 //FSM中使用的客户端状态
 #define	CLOSED 1

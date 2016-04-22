@@ -136,19 +136,23 @@ int main(int argc, char *argv[])
 
     if(stcp_client_disconnect(sockfd) < 0) {
         printf("fail to disconnect from stcp server\n");
-        Exit(1);
     }
+
+    log("disconnected 1");
+
     if(stcp_client_close(sockfd) < 0) {
-        printf("failt to close stcp client\n");
+        printf("fail to close stcp client\n");
         Exit(1);
     }
 
     if(stcp_client_disconnect(sockfd2) < 0) {
         printf("fail to disconnect from stcp server\n");
-        Exit(1);
     }
+
+    log("disconnected 2");
+
     if(stcp_client_close(sockfd2) < 0) {
-        printf("failt to close stcp client\n");
+        printf("fail to close stcp client\n");
         Exit(1);
     }
 
