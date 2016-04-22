@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <signal.h>
 #include <time.h>
 #include <limits.h>
 #include "../common/constants.h"
@@ -73,8 +74,22 @@ static inline void Exit(int state)
     exit(state);
 }
 
+void handle_closed_socket(int sig, siginfo_t *si, void *unused)
+{
+    log("Hello");
+    sys_panic("");
+}
+
 int main(int argc, char *argv[])
 {
+    struct sigaction sa = {};
+    sa.sa_flags = SA_SIGINFO;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_sigaction = handle_closed_socket;
+    if (sigaction(SIGPIPE, &sa, NULL) == -1) {
+        sys_panic("sigaction");
+    }
+
     //用于丢包率的随机数种子
     srand(time(NULL));
 
