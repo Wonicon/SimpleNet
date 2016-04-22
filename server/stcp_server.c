@@ -27,6 +27,34 @@
 //
 
 /**
+ * @brief 内部日志信息，自动输出 tcb 相关内容。
+ */
+#define LOG(tcb, fmt, ...) \
+    log(MAGENTA "{tcb:%p} " NORMAL fmt, tcb, ## __VA_ARGS__)
+
+/**
+ * @brief 状态字符串
+ *
+ * 对应状态枚举值的字符串常量。
+ */
+static const char *server_state_s[] = {
+#define S(x) #x
+#define TOKEN(x) ORANGE S(x) NORMAL
+#include "stcp_server_state.h"
+#undef TOKEN
+#undef S
+};
+
+/**
+ * @brief 输出 tcb 的状态对应的字符串常量
+ * @param tcb 传输控制块
+ */
+static const char *state_to_s(const server_tcb_t *tcb)
+{
+    return server_state_s[tcb->state];
+}
+
+/**
  * @brief TCB 池
  *
  * MAX_TRANSPORT_CONNECTIONS 是支持的最大连接数
@@ -111,7 +139,7 @@ int stcp_server_accept(int sockfd)
         panic("son has been closed");
     }
 
-    volatile server_tcb_t *tcb = tcbs[sockfd];
+    server_tcb_t *tcb = tcbs[sockfd];
 
     if (tcb == NULL) {
         log("Invalid stcp socket %d", sockfd);
@@ -122,15 +150,15 @@ int stcp_server_accept(int sockfd)
         return 0;
     }
     else {
-        log("Shift state to LISTENING");
         tcb->state = LISTENING;
+        LOG(tcb, "shifts state to %s", state_to_s(tcb));
         // TODO 用条件变量？
         while (tcb->state == LISTENING) {
             if (son_connection == -1) {
                 panic("son has been closed");
             }
         }
-        log("Establish connection");
+        LOG(tcb, "establishs connection");
         return 1;
     }
 }
@@ -157,13 +185,13 @@ int stcp_server_close(int sockfd)
     }
 
     server_tcb_t *tcb = tcbs[sockfd];
-    log("waiting connection %d getting into CLOSEWAIT", sockfd);
+    log("waiting connection %d getting into %s", sockfd, server_state_s[CLOSEWAIT]);
     while (tcb->state != CLOSEWAIT) {
         if (son_connection == -1) {
             panic("son has been closed");
         }
     }
-    log("connection %d getting into CLOSEWAIT", sockfd);
+    LOG(tcb, "connection %d getting into %s", sockfd, state_to_s(tcb));
     tcbs[sockfd] = NULL;
 
     // 不需要使用 pthread_mutex_destroy ?
@@ -180,8 +208,7 @@ int stcp_server_close(int sockfd)
 /**
  * @brief 发送控制报文
  */
-static inline void
-send_ctrl(unsigned short type, unsigned short src_port, unsigned short dst_port)
+static inline void send_ctrl(unsigned short type, unsigned short src_port, unsigned short dst_port)
 {
     seg_t synack = {
         .header.src_port = src_port,
@@ -202,31 +229,31 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
     // TODO lock !?
     switch (tcb->state) {
     case CLOSED:
-        log("Unexpected CLOSE state");
+        LOG(tcb, "unexpected state %s", state_to_s(tcb));
         break;
     case LISTENING:
         switch (seg->header.type) {
         case SYN:
             send_ctrl(SYNACK, seg->header.dest_port, seg->header.src_port);
-            log("already send");
+            LOG(tcb, "sents synack");
             tcb->state = CONNECTED;
-            log("Enter CONNECTED state");
+            LOG(tcb, "enters state %s", state_to_s(tcb));
             break;
         default:
-            log("Unexpected segment type %02x for LISTENING state", seg->header.type);
+            LOG(tcb, "unexpected segment type %02x for state %s", seg->header.type, state_to_s(tcb));
         }
         break;
     case CONNECTED:
         switch (seg->header.type) {
         case SYN:
             send_ctrl(SYNACK, seg->header.dest_port, seg->header.src_port);
-            log("Receive duplicated SYN request");
+            LOG(tcb, "receives duplicated SYN request");
             break;
         case FIN:
             send_ctrl(FINACK, seg->header.dest_port, seg->header.src_port);
             // TODO timer !!!
             tcb->state = CLOSEWAIT;
-            log("Enter CLOSEWAIT state");
+            LOG(tcb, "enters state %s", state_to_s(tcb));
             break;
         }
         break;
@@ -234,14 +261,14 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
         switch (seg->header.type) {
         case FIN:
             send_ctrl(FINACK, seg->header.dest_port, seg->header.src_port);
-            log("Receive duplicated FIN request");
+            LOG(tcb, "receives duplicated FIN request");
             break;
         default:
-            log("Unexpected segment type %02x for CLOSEWAIT state", seg->header.type);
+            LOG(tcb, "unexpected segment type %02x for state %s", seg->header.type, state_to_s(tcb));
         }
         break;
     default:
-        log("Unexpected tcb state");
+        log("Unexpected tcb state %d", tcb->state);
     }
 }
 
@@ -252,6 +279,7 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
 // 请查看服务端FSM以了解更多细节.
 //
 
+static void bp() {}
 void *seghandler(void* arg)
 {
     for (;;) {
@@ -266,12 +294,12 @@ void *seghandler(void* arg)
         else if (result == 1) {
             // 丢包
             log("missing packet");
+            bp();
             continue;
         }
 
         // Search & forward.
         // TODO non-block!!!
-        log("src_port = %d, server_port = %d, seq_num = %d", seg.header.src_port, seg.header.dest_port, seg.header.seq_num);
         for (int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
             if (tcbs[i] && tcbs[i]->server_portNum == seg.header.dest_port) {
                 server_fsm(tcbs[i], &seg);

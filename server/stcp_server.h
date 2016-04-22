@@ -8,14 +8,16 @@
 #define STCPSERVER_H
 
 #include <pthread.h>
-#include "../common/seg.h"
-#include "../common/constants.h"
+#include "seg.h"
+#include "constants.h"
 
 //FSM中使用的服务器状态
-#define	CLOSED 1
-#define	LISTENING 2
-#define	CONNECTED 3
-#define	CLOSEWAIT 4
+
+enum {
+#define TOKEN(x) x
+#include "stcp_server_state.h"
+#undef TOKEN
+};
 
 //服务器传输控制块. 一个STCP连接的服务器端使用这个数据结构记录连接信息.
 typedef struct server_tcb {

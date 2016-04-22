@@ -139,7 +139,8 @@ int stcp_client_connect(int sockfd, unsigned int server_port)
         tcb->state = SYNSENT;
         log("Shift state to SYNSENT");
 
-        for(int i = 0; i < SYN_MAX_RETRY; i++) {
+        //for(int i = 0; i < SYN_MAX_RETRY; i++) {
+        for (;;) {
             send_ctrl(SYN, tcb->client_portNum, server_port);
 
             tcb->timeout.tv_sec = SYN_TIMEOUT / 1000000000;
@@ -202,7 +203,8 @@ int stcp_client_disconnect(int sockfd)
         tcb->state = FINWAIT;
 
         //设置等待时间
-        for (int i = 0; i < FIN_MAX_RETRY; i++) {
+        //for (int i = 0; i < FIN_MAX_RETRY; i++) {
+        for (;;) {
             tcb->timeout.tv_sec = FIN_TIMEOUT / 1000000000;
             tcb->timeout.tv_usec = (FIN_TIMEOUT % 1000000000) / 1000000;
             tcb->is_time_out = 0;
