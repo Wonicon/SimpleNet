@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include "stcp_client.h"
 #include "common.h"
+#include "seg.h"
 
 /*面向应用层的接口*/
 
@@ -110,6 +111,17 @@ send_ctrl(unsigned short type, unsigned short src_port, unsigned short dst_port)
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
 
+static void *timer(void *arg)
+{
+    // thanks to http://stackoverflow.com/a/9799466/5164297
+    client_tcb_t *tcb = arg;
+    if (select(0, NULL, NULL, NULL, &tcb->timeout) < 0) {
+        perror("select");
+    }
+    tcb->is_time_out = 1;
+    return arg;
+}
+
 int stcp_client_connect(int sockfd, unsigned int server_port)
 {
     client_tcb_t *tcb = tcbs[sockfd];
@@ -127,20 +139,24 @@ int stcp_client_connect(int sockfd, unsigned int server_port)
         tcb->state = SYNSENT;
         log("Shift state to SYNSENT");
 
-        //TO DO:设置定时并等待一段时间
-        //int i;
-        //for(i = 0; i < SYN_MAX_RETRY; i++) {
-        send_ctrl(SYN, tcb->client_portNum, server_port);
+        for(int i = 0; i < SYN_MAX_RETRY; i++) {
+            send_ctrl(SYN, tcb->client_portNum, server_port);
 
-        //TO DO：等待一段时间
-        while(tcb->state == SYNSENT);
-        if(tcb->state == CONNECTED)
-            return 1;
-        //}
+            tcb->timeout.tv_sec = SYN_TIMEOUT / 1000000000;
+            tcb->timeout.tv_usec = (SYN_TIMEOUT % 1000000000) / 1000000;
+            tcb->is_time_out = 0;
 
-        //if(i == SYN_MAX_RETRY)
-        //	tcb->state = CLOSED;
+            pthread_t tid;
+            pthread_create(&tid, NULL, timer, tcb);
 
+            while (tcb->state != CONNECTED && !tcb->is_time_out) {}
+            if (tcb->state == CONNECTED) {
+                log("connection %d shifts into CONNECTED", sockfd);
+                return 1;
+            }
+            log("oops, syn retry %d.", tcb->state);
+        }
+        log("oops, syn failed.");
         return -1;
     }
     return 0;
@@ -186,9 +202,26 @@ int stcp_client_disconnect(int sockfd)
         tcb->state = FINWAIT;
 
         //设置等待时间
-        while (tcb->state == FINWAIT) ;
+        for (int i = 0; i < FIN_MAX_RETRY; i++) {
+            tcb->timeout.tv_sec = FIN_TIMEOUT / 1000000000;
+            tcb->timeout.tv_usec = (FIN_TIMEOUT % 1000000000) / 1000000;
+            tcb->is_time_out = 0;
+
+            pthread_t tid;
+            pthread_create(&tid, NULL, timer, tcb);
+
+            while (tcb->state != CLOSED && !tcb->is_time_out) {}
+            if (tcb->state == CLOSED) {
+                log("connection %d shifts into CLOSED", sockfd);
+                return 0;
+            }
+
+            log("oops, fin miss, retry");
+        }
+
+        log("oops, fin failed");
+        return -1;
     }
-    return 0;
 }
 
 // 关闭STCP客户
@@ -224,7 +257,7 @@ static void client_fsm(client_tcb_t *tcb, seg_t *seg) {
         switch(seg->header.type) {
         case SYNACK:
             tcb->state = CONNECTED;
-            log("Enter CONNECTED state");
+            log("%p enters CONNECTED state", tcb);
             break;
         default:
             log("Unexpect segment type %02x for SYNSENT state",seg->header.type);

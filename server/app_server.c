@@ -146,6 +146,8 @@ int main(int argc, char *argv[])
     }
 
 
+    log("alive");
+
     //停止重叠网络层
     son_stop(son_conn);
 

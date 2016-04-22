@@ -70,6 +70,10 @@ void stcp_server_init(int conn)
 
 int stcp_server_sock(unsigned int server_port)
 {
+    if (son_connection == -1) {
+        panic("son has been closed");
+    }
+
     for (int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
         if (tcbs[i] == NULL) {
             server_tcb_t *tcb = calloc(1, sizeof(*tcb));
@@ -103,6 +107,10 @@ int stcp_server_sock(unsigned int server_port)
 
 int stcp_server_accept(int sockfd)
 {
+    if (son_connection == -1) {
+        panic("son has been closed");
+    }
+
     volatile server_tcb_t *tcb = tcbs[sockfd];
 
     if (tcb == NULL) {
@@ -117,7 +125,11 @@ int stcp_server_accept(int sockfd)
         log("Shift state to LISTENING");
         tcb->state = LISTENING;
         // TODO 用条件变量？
-        while(tcb->state == LISTENING);
+        while (tcb->state == LISTENING) {
+            if (son_connection == -1) {
+                panic("son has been closed");
+            }
+        }
         log("Establish connection");
         return 1;
     }
@@ -140,9 +152,17 @@ int stcp_server_recv(int sockfd, void* buf, unsigned int length)
 
 int stcp_server_close(int sockfd)
 {
+    if (son_connection == -1) {
+        panic("son has been closed");
+    }
+
     server_tcb_t *tcb = tcbs[sockfd];
     log("waiting connection %d getting into CLOSEWAIT", sockfd);
-    while (tcb->state != CLOSEWAIT) ;
+    while (tcb->state != CLOSEWAIT) {
+        if (son_connection == -1) {
+            panic("son has been closed");
+        }
+    }
     log("connection %d getting into CLOSEWAIT", sockfd);
     tcbs[sockfd] = NULL;
 
@@ -240,6 +260,7 @@ void *seghandler(void* arg)
         if (result == -1) {
             // 收到了模拟 SON 的 TCP 的断开连接请求。
             log("son closed");
+            son_connection = -1;
             break;
         }
         else if (result == 1) {
