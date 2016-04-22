@@ -29,7 +29,8 @@ typedef struct server_tcb {
     unsigned int expect_seqNum;     //服务器期待的数据序号
     char* recvBuf;                  //指向接收缓冲区的指针
     unsigned int  usedBufLen;       //接收缓冲区中已接收数据的大小
-    pthread_mutex_t* bufMutex;      //指向一个互斥量的指针, 该互斥量用于对接收缓冲区的访问
+    pthread_mutex_t *mutex;         //指向一个互斥量的指针, 该互斥量用于对接收缓冲区的访问
+    pthread_cond_t *condition;      // 用于唤醒阻塞 API 的条件变量
 } server_tcb_t;
 
 //

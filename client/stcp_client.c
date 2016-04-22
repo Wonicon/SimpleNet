@@ -155,7 +155,7 @@ int stcp_client_connect(int sockfd, unsigned int server_port)
                 log("connection %d shifts into CONNECTED", sockfd);
                 return 1;
             }
-            log("oops, syn retry %d.", tcb->state);
+            log("tcb:%p oops, syn retry %d.", tcb, tcb->state);
         }
         log("oops, syn failed.");
         return -1;

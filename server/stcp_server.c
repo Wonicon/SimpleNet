@@ -1,12 +1,8 @@
 #include <stdlib.h>
-#include <sys/socket.h>
 #include <stdio.h>
-#include <time.h>
 #include <pthread.h>
 #include "stcp_server.h"
-#include "../common/constants.h"
 #include "common.h"
-#include <netinet/in.h>
 
 /*面向应用层的接口*/
 
@@ -111,8 +107,11 @@ int stcp_server_sock(unsigned int server_port)
             tcb->state = CLOSED;
 
             // Init mutex
-            tcb->bufMutex = malloc(sizeof(*tcb->bufMutex));
-            pthread_mutex_init(tcb->bufMutex, NULL);
+            tcb->mutex = malloc(sizeof(*tcb->mutex));
+            pthread_mutex_init(tcb->mutex, NULL);
+
+            tcb->condition = malloc(sizeof(*tcb->condition));
+            pthread_cond_init(tcb->condition, NULL);
 
             log("Assign socket %d to port %d", i, server_port);
             tcbs[i] = tcb;
@@ -150,15 +149,20 @@ int stcp_server_accept(int sockfd)
         return 0;
     }
     else {
+        pthread_mutex_lock(tcb->mutex);
         tcb->state = LISTENING;
+        pthread_mutex_unlock(tcb->mutex);
+
         LOG(tcb, "shifts state to %s", state_to_s(tcb));
-        // TODO 用条件变量？
-        while (tcb->state == LISTENING) {
-            if (son_connection == -1) {
-                panic("son has been closed");
-            }
+
+        // 等待 seghandler() 唤醒
+        pthread_mutex_lock(tcb->mutex);
+        if (tcb->state != CONNECTED) {
+            pthread_cond_wait(tcb->condition, tcb->mutex);
         }
-        LOG(tcb, "establishs connection");
+        pthread_mutex_unlock(tcb->mutex);
+
+        LOG(tcb, "establishes connection");
         return 1;
     }
 }
@@ -186,16 +190,19 @@ int stcp_server_close(int sockfd)
 
     server_tcb_t *tcb = tcbs[sockfd];
     log("waiting connection %d getting into %s", sockfd, server_state_s[CLOSEWAIT]);
-    while (tcb->state != CLOSEWAIT) {
-        if (son_connection == -1) {
-            panic("son has been closed");
-        }
+
+    pthread_mutex_lock(tcb->mutex);
+    if (tcb->state != CLOSEWAIT) {
+        pthread_cond_wait(tcb->condition, tcb->mutex);
     }
+    pthread_mutex_unlock(tcb->mutex);
+
     LOG(tcb, "connection %d getting into %s", sockfd, state_to_s(tcb));
     tcbs[sockfd] = NULL;
 
     // 不需要使用 pthread_mutex_destroy ?
-    free(tcb->bufMutex);
+    free(tcb->mutex);
+    free(tcb->condition);
     if (tcb->recvBuf) {
         free(tcb->recvBuf);
     }
@@ -235,8 +242,14 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
         switch (seg->header.type) {
         case SYN:
             send_ctrl(SYNACK, seg->header.dest_port, seg->header.src_port);
-            LOG(tcb, "sents synack");
+            LOG(tcb, "sends synack");
+
+            // 这里上锁似乎没有什么作用 !?
+            pthread_mutex_lock(tcb->mutex);
             tcb->state = CONNECTED;
+            pthread_cond_signal(tcb->condition);
+            pthread_mutex_unlock(tcb->mutex);
+
             LOG(tcb, "enters state %s", state_to_s(tcb));
             break;
         default:
@@ -252,7 +265,13 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
         case FIN:
             send_ctrl(FINACK, seg->header.dest_port, seg->header.src_port);
             // TODO timer !!!
+
+            // 这里上锁似乎没有什么作用 !?
+            pthread_mutex_lock(tcb->mutex);
             tcb->state = CLOSEWAIT;
+            pthread_cond_signal(tcb->condition);
+            pthread_mutex_unlock(tcb->mutex);
+
             LOG(tcb, "enters state %s", state_to_s(tcb));
             break;
         }
@@ -303,6 +322,7 @@ void *seghandler(void* arg)
         for (int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
             if (tcbs[i] && tcbs[i]->server_portNum == seg.header.dest_port) {
                 server_fsm(tcbs[i], &seg);
+                break;  // efficiency!
             }
         }
     }
