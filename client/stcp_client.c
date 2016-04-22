@@ -83,7 +83,7 @@ int stcp_client_sock(unsigned int client_port)
 }
 
 //发送报文
-static inline void
+static inline int
 send_ctrl(unsigned short type, unsigned short src_port, unsigned short dst_port) {
     seg_t syn = {
         .header.src_port = src_port,
@@ -93,6 +93,10 @@ send_ctrl(unsigned short type, unsigned short src_port, unsigned short dst_port)
     };
     if(sip_sendseg(son_connection, &syn) == -1) {
         log("sending ctrl to port %d failed", dst_port);
+        return -1;
+    }
+    else {
+        return 1;
     }
 }
 
@@ -139,7 +143,11 @@ int stcp_client_connect(int sockfd, unsigned int server_port)
 #else
         for (;;) {
 #endif
-            send_ctrl(SYN, tcb->client_portNum, server_port);
+            if (send_ctrl(SYN, tcb->client_portNum, server_port) == -1) {
+                // 连接断开，直接退出。
+                tcb->state = CLOSED;
+                break;
+            }
 
             tcb->timeout.tv_sec = SYN_TIMEOUT / 1000000000;
             tcb->timeout.tv_usec = (SYN_TIMEOUT % 1000000000) / 1000000;
@@ -204,8 +212,11 @@ int stcp_client_disconnect(int sockfd)
 #else
         for (;;) {
 #endif
-            send_ctrl(FIN, tcb->client_portNum, tcb->server_portNum);
-
+            if (send_ctrl(FIN, tcb->client_portNum, tcb->server_portNum) == -1) {
+                // 连接断开，直接退出。
+                tcb->state = CLOSED;
+                break;
+            }
             tcb->timeout.tv_sec = FIN_TIMEOUT / 1000000000;
             tcb->timeout.tv_usec = (FIN_TIMEOUT % 1000000000) / 1000000;
             tcb->is_time_out = 0;
