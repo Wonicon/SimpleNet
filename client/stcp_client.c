@@ -126,13 +126,12 @@ int stcp_client_connect(int sockfd, unsigned int server_port)
         tcb->server_portNum = server_port;
         tcb->state = SYNSENT;
         log("Shift state to SYNSENT");
-        log("client_port = %d,server_port = %d",tcb->client_portNum, server_port);
 
         //TO DO:设置定时并等待一段时间
         //int i;
         //for(i = 0; i < SYN_MAX_RETRY; i++) {
         send_ctrl(SYN, tcb->client_portNum, server_port);
-        log("finish send");
+
         //TO DO：等待一段时间
         while(tcb->state == SYNSENT);
         if(tcb->state == CONNECTED)
@@ -183,9 +182,11 @@ int stcp_client_disconnect(int sockfd)
     }
     else {
         log("Shift state to FINWAIT");
+        send_ctrl(FIN, tcb->client_portNum, tcb->server_portNum);
         tcb->state = FINWAIT;
 
         //设置等待时间
+        while (tcb->state == FINWAIT) ;
     }
     return 0;
 }
@@ -230,6 +231,7 @@ static void client_fsm(client_tcb_t *tcb, seg_t *seg) {
         }
         break;
     case CONNECTED:
+        break;
     case FINWAIT:
         switch(seg->header.type) {
         case FINACK:
@@ -273,6 +275,3 @@ void *seghandler(void* arg) {
 
     return arg;
 }
-
-
-

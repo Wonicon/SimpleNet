@@ -141,6 +141,9 @@ int stcp_server_recv(int sockfd, void* buf, unsigned int length)
 int stcp_server_close(int sockfd)
 {
     server_tcb_t *tcb = tcbs[sockfd];
+    log("waiting connection %d getting into CLOSEWAIT", sockfd);
+    while (tcb->state != CLOSEWAIT) ;
+    log("connection %d getting into CLOSEWAIT", sockfd);
     tcbs[sockfd] = NULL;
 
     // 不需要使用 pthread_mutex_destroy ?
