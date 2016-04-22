@@ -36,11 +36,13 @@
 
 #define SEG_BEGIN "!&"
 #define SEG_END   "!#"
+#define SEG_BEGIN_LEN (sizeof(SEG_BEGIN) - sizeof(SEG_BEGIN[0]))
+#define SEG_END_LEN (sizeof(SEG_END) - sizeof(SEG_END[0]))
 
 int sip_sendseg(int connection, seg_t *segptr)
 {
-	//log("%ld,%ld",sizeof(SEG_BEGIN),sizeof("!&"));
-    if (send(connection, SEG_BEGIN, sizeof(SEG_BEGIN), 0) < sizeof(SEG_BEGIN)) {
+    //log("%ld,%ld",sizeof(SEG_BEGIN),sizeof("!&"));
+    if (send(connection, SEG_BEGIN, SEG_BEGIN_LEN, 0) < SEG_BEGIN_LEN) {
         return -1;
     }
 
@@ -52,7 +54,7 @@ int sip_sendseg(int connection, seg_t *segptr)
         return -1;
     }
 
-    if (send(connection, SEG_END, sizeof(SEG_END), 0) < sizeof(SEG_END)) {
+    if (send(connection, SEG_END, SEG_END_LEN, 0) < SEG_END_LEN) {
         return -1;
     }
 
@@ -96,7 +98,8 @@ int sip_recvseg(int connection, seg_t *segptr)
 
     // 读取段
     Recv(connection, &segptr->header, sizeof(segptr->header));
-	log("src_port = %d, server_port = %d, seq_num = %d",segptr->header.src_port,segptr->header.dest_port,segptr->header.seq_num);
+    log("src_port = %d, server_port = %d, seq_num = %d",
+        segptr->header.src_port, segptr->header.dest_port, segptr->header.seq_num);
     Recv(connection, segptr->data, sizeof(*segptr->data) * segptr->header.length);
 
     // 检查结束标记 "!#"
@@ -112,7 +115,7 @@ int sip_recvseg(int connection, seg_t *segptr)
     }
 
     //return seglost();
-    return 1;
+    return 0;
 }
 
 int seglost()

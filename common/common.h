@@ -21,6 +21,6 @@
     } while (0)
 
 #define log(fmt, ...) \
-    printf("[%s:%d]" fmt "\n", __FUNCTION__, __LINE__, ## __VA_ARGS__)
+    printf("[%s:%d] " fmt "\n", __FUNCTION__, __LINE__, ## __VA_ARGS__)
 
 #endif // COMMON_H

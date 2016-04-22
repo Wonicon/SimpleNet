@@ -185,7 +185,7 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
         switch (seg->header.type) {
         case SYN:
             send_ctrl(SYNACK, seg->header.dest_port, seg->header.src_port);
-			log("already send");
+            log("already send");
             tcb->state = CONNECTED;
             log("Enter CONNECTED state");
             break;
@@ -234,24 +234,22 @@ void *seghandler(void* arg)
     for (;;) {
         seg_t seg = {};
         int result = sip_recvseg(son_connection, &seg);
-		log("here");
-		log("result = %d", result);
         if (result == -1) {
             // 收到了模拟 SON 的 TCP 的断开连接请求。
+            log("son closed");
             break;
         }
         else if (result == 1) {
             // 丢包
+            log("missing packet");
             continue;
         }
 
         // Search & forward.
         // TODO non-block!!!
-		log("src_port = %d, server_port = %d, seq_num = %d",seg.header.src_port,seg.header.dest_port,seg.header.seq_num);
-		log("TO find server_port = %d", seg.header.dest_port);
+        log("src_port = %d, server_port = %d, seq_num = %d", seg.header.src_port, seg.header.dest_port, seg.header.seq_num);
         for (int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
             if (tcbs[i] && tcbs[i]->server_portNum == seg.header.dest_port) {
-				log("find socked!");
                 server_fsm(tcbs[i], &seg);
             }
         }
