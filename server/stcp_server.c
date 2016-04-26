@@ -182,6 +182,41 @@ int stcp_server_recv(int sockfd, void* buf, unsigned int length)
 // 失败时(即位于错误的状态)返回-1.
 //
 
+/**
+ * @brief Release the tcb resource after a timeout
+ * @param arg the POINTER to the specific tcb entry that we want to release.
+ *
+ * To make the tcb entry NULL again, we should pass &tcb[i] to this thread.
+ */
+static void *closewait_handler(void *arg)
+{
+    server_tcb_t **tcbs_entry = arg;
+    server_tcb_t *tcb = *tcbs_entry;
+
+    struct timeval tv = { .tv_sec = CLOSEWAIT_TIMEOUT };
+    if (select(0, NULL, NULL, NULL, &tv) < 0) {
+        perror("select");
+    }
+
+    LOG(*tcbs_entry, "closewait timeout");
+
+    pthread_mutex_lock(tcb->mutex);
+    // Note the fsm handler thread may be locked by this mutex.
+    // The tcb must be on CLOSEWAIT. Currently it does not need the tcb pointer to be valid except for logging.
+    // At least now we can set tcbs_entry to NULL to avoid any new duplicated packet being handled.
+    *tcbs_entry = NULL;
+    pthread_mutex_unlock(tcb->mutex);
+
+    free(tcb->mutex);
+    free(tcb->condition);
+    if (tcb->recvBuf) {
+        free(tcb->recvBuf);
+    }
+    free(tcb);
+
+    return arg;
+}
+
 int stcp_server_close(int sockfd)
 {
     if (son_connection == -1) {
@@ -189,6 +224,7 @@ int stcp_server_close(int sockfd)
     }
 
     server_tcb_t *tcb = tcbs[sockfd];
+    log("Socket listening on port %d is to be closed", tcb->server_portNum);
     log("waiting connection %d getting into %s", sockfd, server_state_s[CLOSEWAIT]);
 
     pthread_mutex_lock(tcb->mutex);
@@ -198,17 +234,9 @@ int stcp_server_close(int sockfd)
     pthread_mutex_unlock(tcb->mutex);
 
     LOG(tcb, "connection %d getting into %s", sockfd, state_to_s(tcb));
-    tcbs[sockfd] = NULL;
 
-    // 不需要使用 pthread_mutex_destroy ?
-    free(tcb->mutex);
-    free(tcb->condition);
-    if (tcb->recvBuf) {
-        free(tcb->recvBuf);
-    }
-    free(tcb);
-
-    // TODO 何时返回 -1 ?
+    pthread_t tid;
+    pthread_create(&tid, NULL, closewait_handler, &tcbs[sockfd]);
     return 0;
 }
 
@@ -233,7 +261,6 @@ static inline void send_ctrl(unsigned short type, unsigned short src_port, unsig
  */
 static void server_fsm(server_tcb_t *tcb, seg_t *seg)
 {
-    // TODO lock !?
     switch (tcb->state) {
     case CLOSED:
         LOG(tcb, "unexpected state %s", state_to_s(tcb));
@@ -264,7 +291,7 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
             break;
         case FIN:
             send_ctrl(FINACK, seg->header.dest_port, seg->header.src_port);
-            // TODO timer !!!
+            LOG(tcb, "has sent FINACK");
 
             // 这里上锁似乎没有什么作用 !?
             pthread_mutex_lock(tcb->mutex);
@@ -283,7 +310,10 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
             LOG(tcb, "receives duplicated FIN request");
             break;
         default:
-            LOG(tcb, "unexpected segment type %02x for state %s", seg->header.type, state_to_s(tcb));
+            // Replacing the state symbol from a dynamic state_to_s call to a static expression keeps the coupling
+            // of the symbol and its literal string but avoid potential hazard on accessing a dangling pointer.
+            // Because the closewait_handler will free the pointer.
+            LOG(tcb, "unexpected segment type %02x for state %s", seg->header.type, server_state_s[CLOSEWAIT]);
         }
         break;
     default:
@@ -314,14 +344,20 @@ void *seghandler(void* arg)
             continue;
         }
 
+        log("receive a packet whose destination port is %d", seg.header.dest_port);
+
         // Search & forward.
         // TODO non-block!!!
         for (int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
             if (tcbs[i] && tcbs[i]->server_portNum == seg.header.dest_port) {
+                log("forward the packet to tcb %p", tcbs[i]);
                 server_fsm(tcbs[i], &seg);
                 break;  // efficiency!
             }
         }
+
+        log("packet handling done");
+
     }
     return arg;
 }

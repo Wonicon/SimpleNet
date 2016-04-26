@@ -230,7 +230,7 @@ int stcp_client_disconnect(int sockfd)
                 return 0;
             }
 
-            log("oops, fin miss, retry");
+            log("Oops, fin to remote port %d missed, retry", tcb->server_portNum);
         }
 
         log("oops, fin failed");
@@ -312,7 +312,12 @@ void *seghandler(void* arg) {
         }
         else if (result == 1) {
             // 丢包
-            log("missing packet");
+            if (seg.header.type == FINACK) {
+                log(RED "Oops, missing FINACK to %d" NORMAL, seg.header.dest_port);
+            }
+            else {
+                log("missing packet");
+            }
             continue;
         }
 
