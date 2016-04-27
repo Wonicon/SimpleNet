@@ -12,10 +12,11 @@
 #include "seg.h"
 
 //FSM中使用的客户端状态
-#define	CLOSED 1
-#define	SYNSENT 2
-#define	CONNECTED 3
-#define	FINWAIT 4
+enum {
+#define TOKEN(x) x
+#include "stcp_client_state.h"
+#undef TOKEN
+};
 
 //在发送缓冲区链表中存储段的单元
 typedef struct segBuf {

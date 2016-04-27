@@ -24,6 +24,35 @@
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
 
+/**
+ * @brief 内部日志信息，自动输出 tcb 相关内容。
+ */
+#define LOG(tcb, fmt, ...) \
+    log(MAGENTA "{tcb:%p} " NORMAL fmt, tcb, ## __VA_ARGS__)
+
+/**
+ * @brief The string table for client states
+ */
+static const char *client_state_s[] = {
+#define S(x) #x
+#define TOKEN(x) ORANGE S(x) NORMAL
+#include "stcp_client_state.h"
+#undef TOKEN
+#undef S
+};
+
+/**
+ * @brief Get the state string of the given tcb
+ * @param tcb the tcb we want to log its state
+ *
+ * The tcb can be released in another thread, so
+ * we might access a dangling pointer.
+ */
+static const char *state_to_s(const client_tcb_t *tcb)
+{
+    return client_state_s[tcb->state];
+}
+
 //tcb连接池
 static client_tcb_t *tcbs[MAX_TRANSPORT_CONNECTIONS];
 
@@ -121,6 +150,9 @@ static void *timer(void *arg)
     return arg;
 }
 
+/**
+ * @brief connect to a remote server
+ */
 int stcp_client_connect(int sockfd, unsigned int server_port)
 {
     client_tcb_t *tcb = tcbs[sockfd];
@@ -136,7 +168,7 @@ int stcp_client_connect(int sockfd, unsigned int server_port)
     else {
         tcb->server_portNum = server_port;
         tcb->state = SYNSENT;
-        log("Shift state to SYNSENT");
+        LOG(tcb, "shifts into %s", state_to_s(tcb));
 
 #ifndef ENDLESS_RETRY
         for (int i = 0; i < SYN_MAX_RETRY; i++) {
@@ -158,12 +190,14 @@ int stcp_client_connect(int sockfd, unsigned int server_port)
 
             while (tcb->state != CONNECTED && !tcb->is_time_out) {}
             if (tcb->state == CONNECTED) {
-                log("connection %d shifts into CONNECTED", sockfd);
+                LOG(tcb, "connection %d shifts into %s", sockfd, state_to_s(tcb));
                 return 1;
             }
-            log("tcb:%p oops, syn retry %d.", tcb, tcb->state);
+            else {
+                LOG(tcb, "%s time out", state_to_s(tcb));
+            }
         }
-        log("oops, syn failed.");
+        LOG(tcb, "Oops, syn failed");
         return -1;
     }
 }
@@ -199,12 +233,13 @@ int stcp_client_disconnect(int sockfd)
         return 0;
     }
     else if(tcb->state != CONNECTED) {
-        log("The state of this stcp socket is not CONNECTED");
+        log("Socket %d is to be disconnected but under %s",
+                sockfd, client_state_s[tcb->state]);
         return 0;
     }
     else {
-        log("Shift state to FINWAIT");
         tcb->state = FINWAIT;
+        LOG(tcb, "shifts into %s", state_to_s(tcb));
 
         //设置等待时间
 #ifndef ENDLESS_RETRY
@@ -217,6 +252,7 @@ int stcp_client_disconnect(int sockfd)
                 tcb->state = CLOSED;
                 break;
             }
+
             tcb->timeout.tv_sec = FIN_TIMEOUT / 1000000000;
             tcb->timeout.tv_usec = (FIN_TIMEOUT % 1000000000) / 1000000;
             tcb->is_time_out = 0;
@@ -226,8 +262,11 @@ int stcp_client_disconnect(int sockfd)
 
             while (tcb->state != CLOSED && !tcb->is_time_out) {}
             if (tcb->state == CLOSED) {
-                log("connection %d shifts into CLOSED", sockfd);
+                log("Socket %d shifts into %s", sockfd, state_to_s(tcb));
                 return 0;
+            }
+            else {
+                LOG(tcb, "%s time out", state_to_s(tcb));
             }
 
             log("Oops, fin to remote port %d missed, retry", tcb->server_portNum);
@@ -249,9 +288,9 @@ int stcp_client_disconnect(int sockfd)
 int stcp_client_close(int sockfd)
 {
     client_tcb_t *tcb = tcbs[sockfd];
+    LOG(tcb, "is to be closed");
     tcbs[sockfd] = NULL;
 
-    //pthread_mutex_destory?
     free(tcb->bufMutex);
     if(tcb->sendBufHead) free(tcb->sendBufHead);
     if(tcb->sendBufunSent) free(tcb->sendBufunSent);
@@ -265,16 +304,17 @@ int stcp_client_close(int sockfd)
 static void client_fsm(client_tcb_t *tcb, seg_t *seg) {
     switch(tcb->state) {
     case CLOSED:
-        log("Unexpected CLOSE state");
+        log("Unexpected %s state", client_state_s[CLOSED]);
         break;
     case SYNSENT:
         switch(seg->header.type) {
         case SYNACK:
             tcb->state = CONNECTED;
-            log("%p enters CONNECTED state", tcb);
+            LOG(tcb, "enters %s state", state_to_s(tcb));
             break;
         default:
-            log("Unexpect segment type %02x for SYNSENT state",seg->header.type);
+            LOG(tcb, "receives an unexpect segment with type %02x under %s",
+                    seg->header.type, client_state_s[SYNSENT]);
         }
         break;
     case CONNECTED:
@@ -283,14 +323,15 @@ static void client_fsm(client_tcb_t *tcb, seg_t *seg) {
         switch(seg->header.type) {
         case FINACK:
             tcb->state = CLOSED;
-            log("return closed state");
+            LOG(tcb, "returns %s", client_state_s[CLOSED]);
             break;
         default:
-            log("Unexpect segment type %02x for FINWAIT state",seg->header.type);
+            LOG(tcb, "receives an unexpect segment with type %02x under %s",
+                    seg->header.type, client_state_s[FINWAIT]);
         }
         break;
     default:
-        log("Unexpect tcb state");
+        LOG(tcb, "unexpect tcb state");
     }
 }
 
@@ -313,7 +354,8 @@ void *seghandler(void* arg) {
         else if (result == 1) {
             // 丢包
             if (seg.header.type == FINACK) {
-                log(RED "Oops, missing FINACK to %d" NORMAL, seg.header.dest_port);
+                log(RED "Oops, missing FINACK from %d to %d" NORMAL,
+                        seg.header.src_port, seg.header.dest_port);
             }
             else {
                 log("missing packet");
@@ -321,13 +363,19 @@ void *seghandler(void* arg) {
             continue;
         }
 
+        log("receive a segment(type %x) from %d to %d",
+                seg.header.type, seg.header.src_port, seg.header.dest_port);
+
         for(int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
             if(tcbs[i] && tcbs[i]->client_portNum == seg.header.dest_port) {
                 client_fsm(tcbs[i], &seg);
                 break;  // efficiency!
             }
         }
+
+        log("done");
     }
 
+    log("seghander exits");
     return arg;
 }
