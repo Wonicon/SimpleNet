@@ -1,4 +1,4 @@
-CC     := clang
+CC     := gcc
 CFLAGS := -Wall -Werror -Wfatal-errors -std=gnu11 -g -O0 -pthread -I ./common
 
 PREFIX := lab5
