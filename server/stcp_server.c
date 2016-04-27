@@ -336,6 +336,16 @@ void *seghandler(void* arg)
             // 收到了模拟 SON 的 TCP 的断开连接请求。
             log("son closed");
             son_connection = -1;
+
+            // Notice all valid tcb, avoid infinite stalling.
+            log("Wake up all waiting api-users");
+            for (int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
+                if (tcbs[i]) {
+                    log("Sadly, socket %d has not been closed", i);
+                    pthread_cond_signal(tcbs[i]->condition);
+                }
+            }
+
             break;
         }
         else if (result == 1) {

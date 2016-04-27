@@ -357,6 +357,10 @@ void *seghandler(void* arg) {
                 log(RED "Oops, missing FINACK from %d to %d" NORMAL,
                         seg.header.src_port, seg.header.dest_port);
             }
+            else if (seg.header.type == SYNACK) {
+                log(RED "Oops, missing SYNACK from %d to %d" NORMAL,
+                        seg.header.src_port, seg.header.dest_port);
+            }
             else {
                 log("missing packet");
             }

@@ -70,13 +70,15 @@ static int son_conn = -1;
 
 static inline void Exit(int state)
 {
+    log("stop son unexpectly");
     son_stop(son_conn);
+    log("exit the program");
     exit(state);
 }
 
 void handle_closed_socket(int sig, siginfo_t *si, void *unused)
 {
-    log("Hello");
+    log("SIGPIPE!");
     sys_panic("");
 }
 
@@ -106,73 +108,79 @@ int main(int argc, char *argv[])
         }
     }
 
-    printf("start son on port %d\n", son_port);
+    log("Start son on port %d", son_port);
 
     //启动重叠网络层并获取重叠网络层TCP套接字描述符
     son_conn = son_start(argv[1]);
     if(son_conn < 0) {
-        printf("fail to start overlay network\n");
+        log("Fail to start overlay network");
         Exit(1);
     }
 
     //初始化stcp客户端, 传递TCP套接字描述符给STCP层, STCP将该套接字作为一个全局变量维护
     stcp_client_init(son_conn);
 
+    log("Son started");
     sleep(1);
 
     //在端口87上创建STCP客户端套接字, 并连接到STCP服务器端口88
     int sockfd = stcp_client_sock(CLIENTPORT1);
     if(sockfd < 0) {
-        printf("fail to create stcp client sock");
+        log("Fail to create stcp client sock");
         Exit(1);
     }
     if(stcp_client_connect(sockfd, SERVERPORT1) < 0) {
-        printf("fail to connect to stcp server\n");
+        log("Fail to connect to stcp server");
         Exit(1);
     }
 
-    log("client (port %d) connect to server (port %d)", CLIENTPORT1, SERVERPORT1);
+    log("Client (port %d) connects to server (port %d)", CLIENTPORT1, SERVERPORT1);
 
     //在端口89上创建STCP客户端套接字, 并连接到STCP服务器端口90
     int sockfd2 = stcp_client_sock(CLIENTPORT2);
     if(sockfd2 < 0) {
-        printf("fail to create stcp client sock");
+        log("Fail to create stcp client sock");
         Exit(1);
     }
     if(stcp_client_connect(sockfd2, SERVERPORT2) < 0) {
-        printf("fail to connect to stcp server\n");
+        log("Fail to connect to stcp server");
         Exit(1);
     }
 
-    log("client (port %d) connect to server (port %d)", CLIENTPORT2, SERVERPORT2);
+    log("Client (port %d) connects to server (port %d)", CLIENTPORT2, SERVERPORT2);
 
     //等待一段时间, 然后关闭连接
+    log("Wait a while to disconnect");
     sleep(WAITTIME);
 
     if(stcp_client_disconnect(sockfd) < 0) {
-        printf("fail to disconnect from stcp server\n");
+        log("fail to disconnect from stcp server");
     }
 
-    log("disconnected 1");
+    log("disconnected socket 0");
 
     if(stcp_client_close(sockfd) < 0) {
-        printf("fail to close stcp client\n");
+        log("fail to close stcp client");
         Exit(1);
     }
 
     if(stcp_client_disconnect(sockfd2) < 0) {
-        printf("fail to disconnect from stcp server\n");
+        log("fail to disconnect from stcp server");
     }
 
-    log("disconnected 2");
+    log("disconnected socket 1");
 
     if(stcp_client_close(sockfd2) < 0) {
-        printf("fail to close stcp client\n");
+        log("fail to close stcp client");
         Exit(1);
     }
+
+    log("Successfully pass all usecases");
 
     sleep(WAITTIME);
 
     //停止重叠网络层
     son_stop(son_conn);
+
+    log("Exit the program in a happy path");
 }
