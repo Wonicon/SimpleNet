@@ -178,11 +178,7 @@ int stcp_client_connect(int sockfd, unsigned int server_port)
         tcb->state = SYNSENT;
         LOG(tcb, "shifts into %s", state_to_s(tcb));
 
-#ifndef ENDLESS_RETRY
         for (int i = 0; i < SYN_MAX_RETRY; i++) {
-#else
-        for (;;) {
-#endif
             if (send_ctrl(SYN, tcb->client_portNum, server_port) == -1) {
                 // 连接断开，直接退出。
                 tcb->state = CLOSED;
@@ -252,11 +248,7 @@ int stcp_client_disconnect(int sockfd)
         LOG(tcb, "shifts into %s", state_to_s(tcb));
 
         //设置等待时间
-#ifndef ENDLESS_RETRY
         for (int i = 0; i < FIN_MAX_RETRY; i++) {
-#else
-        for (;;) {
-#endif
             if (send_ctrl(FIN, tcb->client_portNum, tcb->server_portNum) == -1) {
                 // 连接断开，直接退出。
                 tcb->state = CLOSED;
