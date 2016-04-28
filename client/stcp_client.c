@@ -1,5 +1,7 @@
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <assert.h>
 #include <pthread.h>
 #include "stcp_client.h"
 #include "common.h"
@@ -92,12 +94,20 @@ int stcp_client_sock(unsigned int client_port)
             client_tcb_t *tcb = calloc(1, sizeof(*tcb));
 
             tcb->client_portNum = client_port;
-            tcb->server_portNum = -1;
+            tcb->server_portNum = (unsigned int)(-1);
             tcb->state = CLOSED;
 
             //init mutex
             tcb->bufMutex = malloc(sizeof(*tcb->bufMutex));
             pthread_mutex_init(tcb->bufMutex, NULL);
+
+            // init fields related to send
+            tcb->sendBufHead = NULL;
+            tcb->sendBufTail = NULL;
+            tcb->sendBufunSent = NULL;
+            tcb->next_seqNum = 0;
+            tcb->unAck_segNum = 0;
+            tcb->send_time = 0;
 
             log("Assign socket %d to port %d", i, client_port);
             tcbs[i] = tcb;
@@ -143,7 +153,7 @@ static void *timer(void *arg)
 {
     // thanks to http://stackoverflow.com/a/9799466/5164297
     client_tcb_t *tcb = arg;
-    const unsigned short prev = tcb->state;
+    const unsigned int prev = tcb->state;
     LOG(tcb, "timer starts under %s", state_to_s(tcb));
     if (select(0, NULL, NULL, NULL, &tcb->timeout) < 0) {
         perror("select");
@@ -208,15 +218,59 @@ int stcp_client_connect(int sockfd, unsigned int server_port)
     }
 }
 
-// 发送数据给STCP服务器
-//
-// 这个函数发送数据给STCP服务器. 你不需要在本实验中实现它。
-//
-//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-//
-
-int stcp_client_send(int sockfd, void* data, unsigned int length)
+/**
+ * @brief 发送数据给STCP服务器
+ *
+ * 这个函数使用套接字ID找到TCB表中的条目.
+ * 然后它使用提供的数据创建segBuf, 将它附加到发送缓冲区链表中.
+ * 如果发送缓冲区在插入数据之前为空, 一个名为sendbuf_timer的线程就会启动.
+ * 每隔SENDBUF_ROLLING_INTERVAL时间查询发送缓冲区以检查是否有超时事件发生.
+ * 这个函数在成功时返回1，否则返回-1.
+ */
+int stcp_client_send(int sockfd, void *data, unsigned int length)
 {
+    client_tcb_t *tcb = tcbs[sockfd];
+    if (tcb == NULL) {
+        log(RED "The socket %d is invalid" NORMAL, sockfd);
+        return -1;
+    }
+    else if (tcb->state != CONNECTED) {
+        LOG(tcb, "is under %s, and cannot send data", state_to_s(tcb));
+        return -1;
+    }
+
+    // Send buffer can be set up without locking.
+    segBuf_t *sendbuf = calloc(1, sizeof(*sendbuf));
+    sendbuf->next = NULL;
+    sendbuf->sentTime = tcb->send_time;
+    sendbuf->seg.header.type = DATA;
+    sendbuf->seg.header.src_port = tcb->client_portNum;
+    sendbuf->seg.header.dest_port = tcb->server_portNum;
+    sendbuf->seg.header.length = length;
+    sendbuf->seg.header.seq_num = tcb->next_seqNum;
+    memcpy(sendbuf->seg.data, data, length);
+
+    pthread_mutex_lock(tcb->bufMutex);
+    LOG(tcb, "adds send buffer under window size %d", tcb->unAck_segNum);
+    tcb->unAck_segNum++;
+    if (tcb->sendBufTail == NULL) {
+        LOG(tcb, "This is the first send bufferd");
+        assert(tcb->sendBufHead == NULL);  // This causes tail to be NULL.
+        assert(tcb->sendBufunSent == NULL);  // This one runs into NULL at first.
+        tcb->sendBufTail = sendbuf;
+        tcb->sendBufHead = tcb->sendBufTail;
+        tcb->sendBufunSent = tcb->sendBufHead;
+    }
+    else {
+        tcb->sendBufTail->next = sendbuf;
+        tcb->sendBufTail = sendbuf;
+        if (tcb->sendBufunSent == NULL) {
+            LOG(tcb, "Send buffers are all sent but not acked yet");
+            tcb->sendBufunSent = sendbuf;
+        }
+    }
+    pthread_mutex_unlock(tcb->bufMutex);
+
     return 1;
 }
 

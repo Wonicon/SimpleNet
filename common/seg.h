@@ -81,22 +81,6 @@ int sip_recvseg(int connection, seg_t* segPtr);
 // 下面是seglost()的代码.
 //
 // 如果段丢失了, 就返回1, 否则返回0.
-int seglost();
-// seglost的源代码
-// 将它拷贝到seg.c中
-/*
-int seglost() {
-	int random = rand()%100;
-	if(random<PKT_LOSS_RATE*100) {
-		return 1;
-    }
-	else {
-		return 0;
-    }
-}
-*/
-//
-//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-//
+int seglost(seg_t *seg);
 
 #endif

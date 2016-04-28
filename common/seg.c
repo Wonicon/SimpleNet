@@ -8,11 +8,6 @@
 
 #include "seg.h"
 #include "network.h"
-#include "common.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/socket.h>
 
 //
 //
@@ -138,12 +133,12 @@ int sip_recvseg(int connection, seg_t *segptr)
         return 0;
     }
 
-    return seglost();
+    return seglost(segptr);
 }
 
 int seglost(seg_t *seg)
 {
-    log("Wos, valid");
+    return 0;  // TODO Make development easier!
     if ((rand() % 100) < PKT_LOSS_RATE * 100) {
         if ((rand() % 2) == 0) {
             // 50% to discard the segment

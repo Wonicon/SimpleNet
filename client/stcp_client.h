@@ -34,6 +34,7 @@ typedef struct client_tcb {
     unsigned int state;     	//客户端状态
     unsigned int next_seqNum;       //新段准备使用的下一个序号
     pthread_mutex_t* bufMutex;      //发送缓冲区互斥量
+    unsigned int send_time;         // Record the send time, increased by sendTimer
     segBuf_t* sendBufHead;          //发送缓冲区头
     segBuf_t* sendBufunSent;        //发送缓冲区中的第一个未发送段
     segBuf_t* sendBufTail;          //发送缓冲区尾
