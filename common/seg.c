@@ -141,13 +141,56 @@ int sip_recvseg(int connection, seg_t *segptr)
     return seglost();
 }
 
-int seglost()
+int seglost(seg_t *seg)
 {
-    int random = rand() % 100;
-    if(random < PKT_LOSS_RATE * 100) {
-        return 1;
+    log("Wos, valid");
+    if ((rand() % 100) < PKT_LOSS_RATE * 100) {
+        if ((rand() % 2) == 0) {
+            // 50% to discard the segment
+            return 1;
+        }
+        else if (seg != NULL) {
+            // 50% to pollute the segment
+            log("A %s segment will be polluted", seg_type_s(seg));
+            int len = sizeof(seg->header) + seg->header.length;
+            int error_bit = rand() % (len * 8);  // random bit index
+            char *temp = (void *)seg;
+            temp = temp + error_bit / 8;
+            *temp = *temp ^ (1 << (error_bit % 8));  // flip-flop a bit
+            return 0;
+        }
+        else {
+            return 0;
+        }
     }
     else {
         return 0;
     }
+}
+
+/**
+ * @brief Calculate the checksum.
+ * @param seg The segment to be calculated.
+ * @return The checksum.
+ *
+ * checksum covers header and data.
+ * 1. clear seg->header.checksum to 0
+ * 2. [add one zero byte to make the data size to 2n]
+ * 3. calc, calc, calc (use 1's complement)
+ */
+unsigned short checksum(seg_t *seg)
+{
+    // TODO Please implement me.
+    return 0;
+}
+
+/**
+ * @brief Calculate and check the checksum field.
+ * @param seg The segment to be checkd.
+ * @return 1 if valid, 0 if invalid.
+ */
+int checkchecksum(seg_t *seg)
+{
+    // TODO Please implement me.
+    return 0;
 }
