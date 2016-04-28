@@ -143,12 +143,18 @@ static void *timer(void *arg)
 {
     // thanks to http://stackoverflow.com/a/9799466/5164297
     client_tcb_t *tcb = arg;
-    LOG(tcb, "timer starts");
+    const unsigned short prev = tcb->state;
+    LOG(tcb, "timer starts under %s", state_to_s(tcb));
     if (select(0, NULL, NULL, NULL, &tcb->timeout) < 0) {
         perror("select");
     }
-    tcb->is_time_out = 1;
-    LOG(tcb, "timer ends");
+    if (prev == tcb->state) {
+        LOG(tcb, "timer ends under the same state %s", state_to_s(tcb));
+        tcb->is_time_out = 1;  // Allow logs to keep sequence
+    }
+    else {
+        LOG(tcb, "timer ends from %s to %s", client_state_s[prev], state_to_s(tcb));
+    }
     return arg;
 }
 
