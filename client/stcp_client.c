@@ -348,9 +348,13 @@ int stcp_client_close(int sockfd)
     tcbs[sockfd] = NULL;
 
     free(tcb->bufMutex);
-    if(tcb->sendBufHead) free(tcb->sendBufHead);
-    if(tcb->sendBufunSent) free(tcb->sendBufunSent);
-    if(tcb->sendBufTail) free(tcb->sendBufTail);
+    while (tcb->sendBufHead) {
+        segBuf_t *tmp = tcb->sendBufHead;
+        tcb->sendBufHead = tcb->sendBufHead->next;
+        free(tmp);
+    }
+    // We do not need to free sendBufTail and sendBufUnsent,
+    // as they should aside on the linked list started from starting from sendBufHead.
     free(tcb);
 
     return 0;
