@@ -8,6 +8,7 @@
 
 #include "seg.h"
 #include "network.h"
+#include "common.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -38,6 +39,32 @@
 #define SEG_END   "!#"
 #define SEG_BEGIN_LEN (sizeof(SEG_BEGIN) - sizeof(SEG_BEGIN[0]))
 #define SEG_END_LEN (sizeof(SEG_END) - sizeof(SEG_END[0]))
+
+/**
+ * @brief The lietral string table for seg's type tag.
+ *
+ * Used for logging.
+ */
+static const char *seg_type_sym[] = {
+#define S(x) #x
+#define TOKEN(x) CYAN S(x) NORMAL
+#include "seg_type.h"
+#undef TOKEN
+#undef S
+};
+
+/**
+ * @brief Get a segment's type string
+ * @param seg the segment pointer
+ * @return the corresponding string
+ *
+ * Note that the string may contain ascii escape code,
+ * which will reset the embedded ascii escape code.
+ */
+const char *seg_type_s(seg_t *seg)
+{
+    return seg_type_sym[seg->header.type];
+}
 
 int sip_sendseg(int connection, seg_t *segptr)
 {

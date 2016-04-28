@@ -82,7 +82,7 @@ void stcp_server_init(int conn)
     // 启动接受网络层报文段的线程
     son_connection = conn;
     pthread_create(&handler_tid, NULL, seghandler, NULL);
-    log("seghandler started.");
+    log("Seghandler started.");
 }
 
 // 创建服务器套接字
@@ -145,7 +145,7 @@ int stcp_server_accept(int sockfd)
         return 0;
     }
     else if (tcb->state != CLOSED) {
-        log("The state of this stcp socket is not CLOSED");
+        log("The state of this stcp socket is not %s", server_state_s[CLOSED]);
         return 0;
     }
     else {
@@ -269,7 +269,7 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
         switch (seg->header.type) {
         case SYN:
             send_ctrl(SYNACK, seg->header.dest_port, seg->header.src_port);
-            LOG(tcb, "sends synack");
+            LOG(tcb, "has sent %s", seg_type_s(seg));
 
             // 这里上锁似乎没有什么作用 !?
             pthread_mutex_lock(tcb->mutex);
@@ -280,7 +280,7 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
             LOG(tcb, "enters state %s", state_to_s(tcb));
             break;
         default:
-            LOG(tcb, "unexpected segment type %02x for state %s", seg->header.type, state_to_s(tcb));
+            LOG(tcb, "unexpected %s segment for state %s", seg_type_s(seg), state_to_s(tcb));
         }
         break;
     case CONNECTED:
@@ -291,7 +291,7 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
             break;
         case FIN:
             send_ctrl(FINACK, seg->header.dest_port, seg->header.src_port);
-            LOG(tcb, "has sent FINACK");
+            LOG(tcb, "has sent %s", seg_type_s(seg));
 
             // 这里上锁似乎没有什么作用 !?
             pthread_mutex_lock(tcb->mutex);
@@ -307,13 +307,13 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
         switch (seg->header.type) {
         case FIN:
             send_ctrl(FINACK, seg->header.dest_port, seg->header.src_port);
-            LOG(tcb, "receives duplicated FIN request");
+            LOG(tcb, "receives duplicated %s segment", seg_type_s(seg));
             break;
         default:
             // Replacing the state symbol from a dynamic state_to_s call to a static expression keeps the coupling
             // of the symbol and its literal string but avoid potential hazard on accessing a dangling pointer.
             // Because the closewait_handler will free the pointer.
-            LOG(tcb, "unexpected segment type %02x for state %s", seg->header.type, server_state_s[CLOSEWAIT]);
+            LOG(tcb, "unexpected %s segment for state %s", seg_type_s(seg), server_state_s[CLOSEWAIT]);
         }
         break;
     default:
@@ -334,7 +334,7 @@ void *seghandler(void* arg)
         int result = sip_recvseg(son_connection, &seg);
         if (result == -1) {
             // 收到了模拟 SON 的 TCP 的断开连接请求。
-            log("son closed");
+            log("SON closed");
             son_connection = -1;
 
             // Notice all valid tcb, avoid infinite stalling.
@@ -350,11 +350,13 @@ void *seghandler(void* arg)
         }
         else if (result == 1) {
             // 丢包
-            log("missing packet");
+            log(RED "Oops, missing " NORMAL "%s" RED " from %d to %d" NORMAL,
+                    seg_type_s(&seg), seg.header.src_port, seg.header.dest_port);
             continue;
         }
 
-        log("receive a packet whose destination port is %d", seg.header.dest_port);
+        log(">>> Receive %s segment from %d to %d",
+                seg_type_s(&seg), seg.header.src_port, seg.header.dest_port);
 
         // Search & forward.
         // TODO non-block!!!
@@ -366,8 +368,10 @@ void *seghandler(void* arg)
             }
         }
 
-        log("packet handling done");
+        log("<<< Packet handling done");
 
     }
+
+    log("Seghandler exits");
     return arg;
 }
