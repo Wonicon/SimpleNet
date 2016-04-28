@@ -10,7 +10,6 @@
 
 //输出: STCP服务器状态
 
-#include "common.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -22,8 +21,8 @@
 #include <stdio.h>
 #include <time.h>
 #include <limits.h>
-
-#include "../common/constants.h"
+#include "constants.h"
+#include "common.h"
 #include "stcp_server.h"
 
 //创建两个连接, 一个使用客户端端口号87和服务器端口号88. 另一个使用客户端端口号89和服务器端口号90

@@ -23,8 +23,8 @@
 #include <signal.h>
 #include <time.h>
 #include <limits.h>
-#include "../common/constants.h"
-#include "../common/common.h"
+#include "constants.h"
+#include "common.h"
 #include "stcp_client.h"
 
 //创建两个连接, 一个使用客户端端口号87和服务器端口号88. 另一个使用客户端端口号89和服务器端口号90
