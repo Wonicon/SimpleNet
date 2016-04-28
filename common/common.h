@@ -4,11 +4,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define GREEN   "\033[0;32m"
-#define RED     "\033[1;31m"
-#define ORANGE  "\033[1;33m"
-#define MAGENTA "\033[1;35m"
-#define NORMAL  "\033[0m"
+// Terminology according to
+// https://en.wikipedia.org/wiki/ANSI_escape_code#Sequence_elements
+#define ESC "\033"
+#define CSI ESC "["
+
+#define CYAN    CSI"1;36m"
+#define GREEN   CSI"0;32m"
+#define RED     CSI"1;31m"
+#define ORANGE  CSI"1;33m"
+#define MAGENTA CSI"1;35m"
+#define NORMAL  CSI"0m"
 
 /**
  * @brief 报告系统错误，并退出程序

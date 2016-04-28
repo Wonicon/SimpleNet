@@ -143,10 +143,18 @@ static void *timer(void *arg)
 {
     // thanks to http://stackoverflow.com/a/9799466/5164297
     client_tcb_t *tcb = arg;
+    const unsigned short prev = tcb->state;
+    LOG(tcb, "timer starts under %s", state_to_s(tcb));
     if (select(0, NULL, NULL, NULL, &tcb->timeout) < 0) {
         perror("select");
     }
-    tcb->is_time_out = 1;
+    if (prev == tcb->state) {
+        LOG(tcb, "timer ends under the same state %s", state_to_s(tcb));
+        tcb->is_time_out = 1;  // Allow logs to keep sequence
+    }
+    else {
+        LOG(tcb, "timer ends from %s to %s", client_state_s[prev], state_to_s(tcb));
+    }
     return arg;
 }
 
@@ -196,6 +204,8 @@ int stcp_client_connect(int sockfd, unsigned int server_port)
             else {
                 LOG(tcb, "%s time out", state_to_s(tcb));
             }
+
+            LOG(tcb, "oops, retry to send FIN");
         }
         LOG(tcb, "Oops, syn failed");
         return -1;
@@ -262,17 +272,17 @@ int stcp_client_disconnect(int sockfd)
 
             while (tcb->state != CLOSED && !tcb->is_time_out) {}
             if (tcb->state == CLOSED) {
-                log("Socket %d shifts into %s", sockfd, state_to_s(tcb));
+                LOG(tcb, "Socket %d shifts into %s", sockfd, state_to_s(tcb));
                 return 0;
             }
             else {
                 LOG(tcb, "%s time out", state_to_s(tcb));
             }
 
-            log("Oops, fin to remote port %d missed, retry", tcb->server_portNum);
+            LOG(tcb, "oops, retry to send FIN");
         }
 
-        log("oops, fin failed");
+        log("Oops, failed to disconnect");
         return -1;
     }
 }
@@ -313,8 +323,8 @@ static void client_fsm(client_tcb_t *tcb, seg_t *seg) {
             LOG(tcb, "enters %s state", state_to_s(tcb));
             break;
         default:
-            LOG(tcb, "receives an unexpect segment with type %02x under %s",
-                    seg->header.type, client_state_s[SYNSENT]);
+            LOG(tcb, "receives unexpect %s segment under %s",
+                    seg_type_s(seg), client_state_s[SYNSENT]);
         }
         break;
     case CONNECTED:
@@ -326,8 +336,8 @@ static void client_fsm(client_tcb_t *tcb, seg_t *seg) {
             LOG(tcb, "returns %s", client_state_s[CLOSED]);
             break;
         default:
-            LOG(tcb, "receives an unexpect segment with type %02x under %s",
-                    seg->header.type, client_state_s[FINWAIT]);
+            LOG(tcb, "receives unexpect %s segment under %s",
+                    seg_type_s(seg), client_state_s[FINWAIT]);
         }
         break;
     default:
@@ -347,28 +357,19 @@ void *seghandler(void* arg) {
         int result = sip_recvseg(son_connection, &seg);
         if (result == -1) {
             // 收到了模拟 SON 的 TCP 的断开连接请求。
-            log("son closed");
+            log("SON closed");
             son_connection = -1;
             break;
         }
         else if (result == 1) {
             // 丢包
-            if (seg.header.type == FINACK) {
-                log(RED "Oops, missing FINACK from %d to %d" NORMAL,
-                        seg.header.src_port, seg.header.dest_port);
-            }
-            else if (seg.header.type == SYNACK) {
-                log(RED "Oops, missing SYNACK from %d to %d" NORMAL,
-                        seg.header.src_port, seg.header.dest_port);
-            }
-            else {
-                log("missing packet");
-            }
+            log(RED "Oops, missing " NORMAL "%s" RED " from %d to %d" NORMAL,
+                    seg_type_s(&seg), seg.header.src_port, seg.header.dest_port);
             continue;
         }
 
-        log("receive a segment(type %x) from %d to %d",
-                seg.header.type, seg.header.src_port, seg.header.dest_port);
+        log(">>> Receive %s segment from %d to %d",
+                seg_type_s(&seg), seg.header.src_port, seg.header.dest_port);
 
         for(int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
             if(tcbs[i] && tcbs[i]->client_portNum == seg.header.dest_port) {
@@ -377,9 +378,9 @@ void *seghandler(void* arg) {
             }
         }
 
-        log("done");
+        log("<<< Packet handling done");
     }
 
-    log("seghander exits");
+    log("Seghander exits");
     return arg;
 }

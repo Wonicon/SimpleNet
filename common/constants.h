@@ -27,7 +27,7 @@
 //stcp_client_disconnect()中的最大FIN重传次数
 #define FIN_MAX_RETRY 5
 //服务器CLOSEWAIT超时值, 单位为秒
-#define CLOSEWAIT_TIMEOUT 1
+#define CLOSEWAIT_TIMEOUT 10
 //stcp_server_accept()函数使用这个时间间隔来忙等待TCB状态转换, 单位为纳秒
 #define ACCEPT_POLLING_INTERVAL 100000000
 #endif

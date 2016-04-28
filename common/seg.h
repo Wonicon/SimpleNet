@@ -12,12 +12,11 @@
 #include "constants.h"
 
 //段类型定义, 用于STCP.
-#define	SYN 0
-#define	SYNACK 1
-#define	FIN 2
-#define	FINACK 3
-#define	DATA 4
-#define	DATAACK 5
+enum {
+#define TOKEN(x) x
+#include "seg_type.h"
+#undef TOKEN
+};
 
 //段首部定义
 
@@ -38,6 +37,9 @@ typedef struct segment {
     stcp_hdr_t header;
     char data[MAX_SEG_LEN];
 } seg_t;
+
+// Return the string which describes the type of segment.
+const char *seg_type_s(seg_t *p);
 
 //
 //  客户端和服务器的SIP API

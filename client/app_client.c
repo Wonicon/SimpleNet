@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
     log("Start son on port %d", son_port);
 
     //启动重叠网络层并获取重叠网络层TCP套接字描述符
-    son_conn = son_start(argv[1]);
+    son_conn = son_start(argc > 1 ? argv[1] : "127.0.0.1");
     if(son_conn < 0) {
         log("Fail to start overlay network");
         Exit(1);
