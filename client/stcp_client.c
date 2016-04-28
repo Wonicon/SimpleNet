@@ -224,6 +224,39 @@ int stcp_client_connect(int sockfd, unsigned int server_port)
 }
 
 /**
+ * 这个线程持续轮询发送缓冲区以触发超时事件. 如果发送缓冲区非空, 它应一直运行.
+ * 如果(当前时间 - 第一个已发送但未被确认段的发送时间) > DATA_TIMEOUT, 就发生一次超时事件.
+ * 当超时事件发生时, 重新发送所有已发送但未被确认段. 当发送缓冲区为空时, 这个线程将终止.
+ */
+void *sendbuf_timer(void *arg)
+{
+    client_tcb_t *tcb = arg;
+    LOG(tcb, "sendbuf_timer started");
+    for (;;) {
+        pthread_mutex_lock(tcb->bufMutex);
+        segBuf_t *curr = tcb->sendBufHead;
+        for (; curr != tcb->sendBufunSent; curr = curr->next) {
+            // TODO check timeout
+            LOG(tcb, "time out checked");
+        }
+        for (; curr != NULL; curr = curr->next) {
+            sip_sendseg(son_connection, &curr->seg);
+            tcb->sendBufunSent = tcb->sendBufunSent->next;
+        }
+        if (tcb->sendBufunSent == NULL) {
+            LOG(tcb, "all segments have been sent");
+        }
+        if (tcb->sendBufHead == NULL) {
+            tcb->sendBufTail = NULL;
+            pthread_mutex_unlock(tcb->bufMutex);
+            return arg;
+        }
+        pthread_mutex_unlock(tcb->bufMutex);
+    }
+    return arg;
+}
+
+/**
  * @brief 发送数据给STCP服务器
  *
  * 这个函数使用套接字ID找到TCB表中的条目.
@@ -265,6 +298,8 @@ int stcp_client_send(int sockfd, void *data, unsigned int length)
         tcb->sendBufTail = sendbuf;
         tcb->sendBufHead = tcb->sendBufTail;
         tcb->sendBufunSent = tcb->sendBufHead;
+        pthread_t tid;
+        pthread_create(&tid, NULL, sendbuf_timer, tcb);
     }
     else {
         tcb->sendBufTail->next = sendbuf;

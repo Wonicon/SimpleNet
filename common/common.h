@@ -33,6 +33,6 @@
     } while (0)
 
 #define log(fmt, ...) \
-    printf(GREEN "[%s:%d] " NORMAL fmt "\n", __FUNCTION__, __LINE__, ## __VA_ARGS__)
+    fprintf(stderr, GREEN "[%s:%d] " NORMAL fmt "\n", __FUNCTION__, __LINE__, ## __VA_ARGS__)
 
 #endif // COMMON_H
