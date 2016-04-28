@@ -41,20 +41,19 @@
 
 int sip_sendseg(int connection, seg_t *segptr)
 {
-    //log("%ld,%ld",sizeof(SEG_BEGIN),sizeof("!&"));
-    if (send(connection, SEG_BEGIN, SEG_BEGIN_LEN, 0) < SEG_BEGIN_LEN) {
+    if (send(connection, SEG_BEGIN, SEG_BEGIN_LEN, 0) == -1) {
         return -1;
     }
 
-    if (send(connection, &segptr->header, sizeof(segptr->header), 0) < sizeof(segptr->header)) {
+    if (send(connection, &segptr->header, sizeof(segptr->header), 0) == -1) {
         return -1;
     }
 
-    if (segptr->header.length > 0 && send(connection, segptr->data, segptr->header.length, 0) < segptr->header.length) {
+    if (segptr->header.length > 0 && send(connection, segptr->data, segptr->header.length, 0) == -1) {
         return -1;
     }
 
-    if (send(connection, SEG_END, SEG_END_LEN, 0) < SEG_END_LEN) {
+    if (send(connection, SEG_END, SEG_END_LEN, 0) == -1) {
         return -1;
     }
 
@@ -98,8 +97,6 @@ int sip_recvseg(int connection, seg_t *segptr)
 
     // 读取段
     Recv(connection, &segptr->header, sizeof(segptr->header));
-    log("src_port = %d, server_port = %d, seq_num = %d",
-        segptr->header.src_port, segptr->header.dest_port, segptr->header.seq_num);
     Recv(connection, segptr->data, sizeof(*segptr->data) * segptr->header.length);
 
     // 检查结束标记 "!#"

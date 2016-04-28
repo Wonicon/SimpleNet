@@ -8,14 +8,16 @@
 #define STCPSERVER_H
 
 #include <pthread.h>
-#include "../common/seg.h"
-#include "../common/constants.h"
+#include "seg.h"
+#include "constants.h"
 
 //FSM中使用的服务器状态
-#define	CLOSED 1
-#define	LISTENING 2
-#define	CONNECTED 3
-#define	CLOSEWAIT 4
+
+enum {
+#define TOKEN(x) x
+#include "stcp_server_state.h"
+#undef TOKEN
+};
 
 //服务器传输控制块. 一个STCP连接的服务器端使用这个数据结构记录连接信息.
 typedef struct server_tcb {
@@ -27,7 +29,8 @@ typedef struct server_tcb {
     unsigned int expect_seqNum;     //服务器期待的数据序号
     char* recvBuf;                  //指向接收缓冲区的指针
     unsigned int  usedBufLen;       //接收缓冲区中已接收数据的大小
-    pthread_mutex_t* bufMutex;      //指向一个互斥量的指针, 该互斥量用于对接收缓冲区的访问
+    pthread_mutex_t *mutex;         //指向一个互斥量的指针, 该互斥量用于对接收缓冲区的访问
+    pthread_cond_t *condition;      // 用于唤醒阻塞 API 的条件变量
 } server_tcb_t;
 
 //

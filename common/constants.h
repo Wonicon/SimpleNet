@@ -14,12 +14,14 @@
 //最大段长度
 //MAX_SEG_LEN = 1500 - sizeof(stcp header) - sizeof(sip header)
 #define MAX_SEG_LEN  1464
-//数据包丢失率为10%
-#define PKT_LOSS_RATE 0.1
+//数据包丢失率为50%
+#define PKT_LOSS_RATE 0.5
 //SYN_TIMEOUT值, 单位为纳秒
-#define SYN_TIMEOUT 100000000
+#define SYN_TIMEOUT 1000000000
 //FIN_TIMEOUT值, 单位为纳秒
-#define FIN_TIMEOUT 100000000
+#define FIN_TIMEOUT 1000000000
+//开关无限重传功能，用于测试。
+//#define ENDLESS_RETRY
 //stcp_client_connect()中的最大SYN重传次数
 #define SYN_MAX_RETRY 5
 //stcp_client_disconnect()中的最大FIN重传次数

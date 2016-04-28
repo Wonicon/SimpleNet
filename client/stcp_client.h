@@ -9,13 +9,14 @@
 #define STCPCLIENT_H
 
 #include <pthread.h>
-#include "../common/seg.h"
+#include "seg.h"
 
 //FSM中使用的客户端状态
-#define	CLOSED 1
-#define	SYNSENT 2
-#define	CONNECTED 3
-#define	FINWAIT 4
+enum {
+#define TOKEN(x) x
+#include "stcp_client_state.h"
+#undef TOKEN
+};
 
 //在发送缓冲区链表中存储段的单元
 typedef struct segBuf {
@@ -37,6 +38,8 @@ typedef struct client_tcb {
     segBuf_t* sendBufunSent;        //发送缓冲区中的第一个未发送段
     segBuf_t* sendBufTail;          //发送缓冲区尾
     unsigned int unAck_segNum;      //已发送但未收到确认段的数量
+    int is_time_out;                // 记录超时事件
+    struct timeval timeout;         // 超时值
 } client_tcb_t;
 
 //

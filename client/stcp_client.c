@@ -1,11 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/time.h>
-#include <time.h>
 #include <pthread.h>
-#include <netinet/in.h>
 #include "stcp_client.h"
 #include "common.h"
 
@@ -28,6 +23,35 @@
 //
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
+
+/**
+ * @brief 内部日志信息，自动输出 tcb 相关内容。
+ */
+#define LOG(tcb, fmt, ...) \
+    log(MAGENTA "{tcb:%p} " NORMAL fmt, tcb, ## __VA_ARGS__)
+
+/**
+ * @brief The string table for client states
+ */
+static const char *client_state_s[] = {
+#define S(x) #x
+#define TOKEN(x) ORANGE S(x) NORMAL
+#include "stcp_client_state.h"
+#undef TOKEN
+#undef S
+};
+
+/**
+ * @brief Get the state string of the given tcb
+ * @param tcb the tcb we want to log its state
+ *
+ * The tcb can be released in another thread, so
+ * we might access a dangling pointer.
+ */
+static const char *state_to_s(const client_tcb_t *tcb)
+{
+    return client_state_s[tcb->state];
+}
 
 //tcb连接池
 static client_tcb_t *tcbs[MAX_TRANSPORT_CONNECTIONS];
@@ -88,7 +112,7 @@ int stcp_client_sock(unsigned int client_port)
 }
 
 //发送报文
-static inline void
+static inline int
 send_ctrl(unsigned short type, unsigned short src_port, unsigned short dst_port) {
     seg_t syn = {
         .header.src_port = src_port,
@@ -98,6 +122,10 @@ send_ctrl(unsigned short type, unsigned short src_port, unsigned short dst_port)
     };
     if(sip_sendseg(son_connection, &syn) == -1) {
         log("sending ctrl to port %d failed", dst_port);
+        return -1;
+    }
+    else {
+        return 1;
     }
 }
 
@@ -111,6 +139,20 @@ send_ctrl(unsigned short type, unsigned short src_port, unsigned short dst_port)
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
 
+static void *timer(void *arg)
+{
+    // thanks to http://stackoverflow.com/a/9799466/5164297
+    client_tcb_t *tcb = arg;
+    if (select(0, NULL, NULL, NULL, &tcb->timeout) < 0) {
+        perror("select");
+    }
+    tcb->is_time_out = 1;
+    return arg;
+}
+
+/**
+ * @brief connect to a remote server
+ */
 int stcp_client_connect(int sockfd, unsigned int server_port)
 {
     client_tcb_t *tcb = tcbs[sockfd];
@@ -126,45 +168,38 @@ int stcp_client_connect(int sockfd, unsigned int server_port)
     else {
         tcb->server_portNum = server_port;
         tcb->state = SYNSENT;
-        log("Shift state to SYNSENT");
-        log("client_port = %d,server_port = %d",tcb->client_portNum, server_port);
+        LOG(tcb, "shifts into %s", state_to_s(tcb));
 
-        //设置定时并等待一段时间
-		fd_set testfds;
-		/*struct timeval timeout = {
-			.tv_sec = 0,
-			.tv_usec = SYN_TIMEOUT / 1000 //等待SYN_TIMEOUT纳秒的时间
-		};*/
+#ifndef ENDLESS_RETRY
+        for (int i = 0; i < SYN_MAX_RETRY; i++) {
+#else
+        for (;;) {
+#endif
+            if (send_ctrl(SYN, tcb->client_portNum, server_port) == -1) {
+                // 连接断开，直接退出。
+                tcb->state = CLOSED;
+                break;
+            }
 
-        int i;
-        for(i = 0; i < SYN_MAX_RETRY; i++) {
-			FD_ZERO(&testfds);
-			FD_SET(0, &testfds);
-			struct timeval timeout = {
-				.tv_sec = 0,
-				.tv_usec = SYN_TIMEOUT / 1000
-			};
+            tcb->timeout.tv_sec = SYN_TIMEOUT / 1000000000;
+            tcb->timeout.tv_usec = (SYN_TIMEOUT % 1000000000) / 1000000;
+            tcb->is_time_out = 0;
 
-			send_ctrl(SYN, tcb->client_portNum, server_port);
-			log("finish send and wait SYNACK---%d try" ,i + 1);
-			//直接等待一段时间后判断是否接收到报文
-			select(FD_SETSIZE, &testfds, (fd_set *)NULL, (fd_set *)NULL, &timeout);
-			if(tcb->state == CONNECTED) {
-				log("recvive SYNACK!");
-				return 1;
-			}
-			else { 
-				log("%d try timeout", i + 1);
-			}
+            pthread_t tid;
+            pthread_create(&tid, NULL, timer, tcb);
+
+            while (tcb->state != CONNECTED && !tcb->is_time_out) {}
+            if (tcb->state == CONNECTED) {
+                LOG(tcb, "connection %d shifts into %s", sockfd, state_to_s(tcb));
+                return 1;
+            }
+            else {
+                LOG(tcb, "%s time out", state_to_s(tcb));
+            }
         }
-
-        //超时没有接收到连接，回到CLOSED状态
-        tcb->state = CLOSED;
-		log("NO SYNACK, return CLOSED");
-
+        LOG(tcb, "Oops, syn failed");
         return -1;
     }
-    return 0;
 }
 
 // 发送数据给STCP服务器
@@ -198,42 +233,48 @@ int stcp_client_disconnect(int sockfd)
         return 0;
     }
     else if(tcb->state != CONNECTED) {
-        log("The state of this stcp socket is not CONNECTED");
+        log("Socket %d is to be disconnected but under %s",
+                sockfd, client_state_s[tcb->state]);
         return 0;
     }
     else {
-        log("Shift state to FINWAIT");
         tcb->state = FINWAIT;
+        LOG(tcb, "shifts into %s", state_to_s(tcb));
 
         //设置等待时间
-		int i;
-		fd_set testfds;
-		for(i = 0; i < FIN_MAX_RETRY; i++) {
-			FD_ZERO(&testfds);
-			FD_SET(0, &testfds);
-			struct timeval timeout = {
-				.tv_sec = 0,
-				.tv_usec = FIN_TIMEOUT / 1000
-			};
+#ifndef ENDLESS_RETRY
+        for (int i = 0; i < FIN_MAX_RETRY; i++) {
+#else
+        for (;;) {
+#endif
+            if (send_ctrl(FIN, tcb->client_portNum, tcb->server_portNum) == -1) {
+                // 连接断开，直接退出。
+                tcb->state = CLOSED;
+                break;
+            }
 
-			send_ctrl(FIN,tcb->client_portNum, tcb->server_portNum);
-			log("finish send FIN and wait FINACK -- %d try", i + 1);
-			select(FD_SETSIZE, &testfds, (fd_set *)NULL, (fd_set *)NULL, &timeout);
-			if(tcb->state == CLOSED) {
-				log("receive FINACK");
-				return 1;
-			}
-			else {
-				log("%d try timeout", i + 1);
-			}
-		}
+            tcb->timeout.tv_sec = FIN_TIMEOUT / 1000000000;
+            tcb->timeout.tv_usec = (FIN_TIMEOUT % 1000000000) / 1000000;
+            tcb->is_time_out = 0;
 
-		//超时没有收到FINACK
-		tcb->state = CLOSED;
-		log("NO FINACK, return CLOSED");
-		return -1;
+            pthread_t tid;
+            pthread_create(&tid, NULL, timer, tcb);
+
+            while (tcb->state != CLOSED && !tcb->is_time_out) {}
+            if (tcb->state == CLOSED) {
+                log("Socket %d shifts into %s", sockfd, state_to_s(tcb));
+                return 0;
+            }
+            else {
+                LOG(tcb, "%s time out", state_to_s(tcb));
+            }
+
+            log("Oops, fin to remote port %d missed, retry", tcb->server_portNum);
+        }
+
+        log("oops, fin failed");
+        return -1;
     }
-    return 0;
 }
 
 // 关闭STCP客户
@@ -247,9 +288,9 @@ int stcp_client_disconnect(int sockfd)
 int stcp_client_close(int sockfd)
 {
     client_tcb_t *tcb = tcbs[sockfd];
+    LOG(tcb, "is to be closed");
     tcbs[sockfd] = NULL;
 
-    //pthread_mutex_destory?
     free(tcb->bufMutex);
     if(tcb->sendBufHead) free(tcb->sendBufHead);
     if(tcb->sendBufunSent) free(tcb->sendBufunSent);
@@ -263,31 +304,34 @@ int stcp_client_close(int sockfd)
 static void client_fsm(client_tcb_t *tcb, seg_t *seg) {
     switch(tcb->state) {
     case CLOSED:
-        log("Unexpected CLOSE state");
+        log("Unexpected %s state", client_state_s[CLOSED]);
         break;
     case SYNSENT:
         switch(seg->header.type) {
         case SYNACK:
             tcb->state = CONNECTED;
-            log("Enter CONNECTED state");
+            LOG(tcb, "enters %s state", state_to_s(tcb));
             break;
         default:
-            log("Unexpect segment type %02x for SYNSENT state",seg->header.type);
+            LOG(tcb, "receives an unexpect segment with type %02x under %s",
+                    seg->header.type, client_state_s[SYNSENT]);
         }
         break;
     case CONNECTED:
+        break;
     case FINWAIT:
         switch(seg->header.type) {
         case FINACK:
             tcb->state = CLOSED;
-            log("return closed state");
+            LOG(tcb, "returns %s", client_state_s[CLOSED]);
             break;
         default:
-            log("Unexpect segment type %02x for FINWAIT state",seg->header.type);
+            LOG(tcb, "receives an unexpect segment with type %02x under %s",
+                    seg->header.type, client_state_s[FINWAIT]);
         }
         break;
     default:
-        log("Unexpect tcb state");
+        LOG(tcb, "unexpect tcb state");
     }
 }
 
@@ -301,24 +345,41 @@ void *seghandler(void* arg) {
     for(;;) {
         seg_t seg = {};
         int result = sip_recvseg(son_connection, &seg);
-        if(result == -1) {
-            //断开连接
+        if (result == -1) {
+            // 收到了模拟 SON 的 TCP 的断开连接请求。
+            log("son closed");
+            son_connection = -1;
             break;
         }
-        else if(result == 1) {
-            //丢包
+        else if (result == 1) {
+            // 丢包
+            if (seg.header.type == FINACK) {
+                log(RED "Oops, missing FINACK from %d to %d" NORMAL,
+                        seg.header.src_port, seg.header.dest_port);
+            }
+            else if (seg.header.type == SYNACK) {
+                log(RED "Oops, missing SYNACK from %d to %d" NORMAL,
+                        seg.header.src_port, seg.header.dest_port);
+            }
+            else {
+                log("missing packet");
+            }
             continue;
         }
+
+        log("receive a segment(type %x) from %d to %d",
+                seg.header.type, seg.header.src_port, seg.header.dest_port);
 
         for(int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
             if(tcbs[i] && tcbs[i]->client_portNum == seg.header.dest_port) {
                 client_fsm(tcbs[i], &seg);
+                break;  // efficiency!
             }
         }
+
+        log("done");
     }
 
+    log("seghander exits");
     return arg;
 }
-
-
-

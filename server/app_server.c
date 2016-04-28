@@ -10,7 +10,6 @@
 
 //输出: STCP服务器状态
 
-#include "common.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -22,8 +21,8 @@
 #include <stdio.h>
 #include <time.h>
 #include <limits.h>
-
-#include "../common/constants.h"
+#include "constants.h"
+#include "common.h"
 #include "stcp_server.h"
 
 //创建两个连接, 一个使用客户端端口号87和服务器端口号88. 另一个使用客户端端口号89和服务器端口号90
@@ -61,6 +60,12 @@ int son_start()
         .sin_addr.s_addr = INADDR_ANY,
         .sin_port        = htons(son_port),
     };
+
+    // 使得退出后可以立即使用旧端口，方便调试
+    int enable = 1;
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) == -1) {
+        sys_panic("setsockopt SO_REUSEADDR");
+    }
 
     if (bind(fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr))) {
         sys_panic("bind");
@@ -145,6 +150,8 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
+
+    log("alive");
 
     //停止重叠网络层
     son_stop(son_conn);
