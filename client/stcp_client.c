@@ -153,7 +153,12 @@ static void *timer(void *arg)
 {
     // thanks to http://stackoverflow.com/a/9799466/5164297
     client_tcb_t *tcb = arg;
-    const unsigned int prev = tcb->state;
+    const unsigned short prev = tcb->state;
+    // TODO We need a lock!
+    if (prev != SYNSENT && prev != FINWAIT) {
+        LOG(tcb, "does not need to wait");
+        return arg;
+    }
     LOG(tcb, "timer starts under %s", state_to_s(tcb));
     if (select(0, NULL, NULL, NULL, &tcb->timeout) < 0) {
         perror("select");
