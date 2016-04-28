@@ -183,4 +183,6 @@ int main(int argc, char *argv[])
     son_stop(son_conn);
 
     log("Exit the program in a happy path");
+    extern pthread_t handler_tid;
+    pthread_join(handler_tid, NULL);
 }

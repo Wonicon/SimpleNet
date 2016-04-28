@@ -219,10 +219,6 @@ static void *closewait_handler(void *arg)
 
 int stcp_server_close(int sockfd)
 {
-    if (son_connection == -1) {
-        panic("son has been closed");
-    }
-
     server_tcb_t *tcb = tcbs[sockfd];
     log("Socket listening on port %d is to be closed", tcb->server_portNum);
     log("waiting connection %d getting into %s", sockfd, server_state_s[CLOSEWAIT]);
@@ -342,6 +338,7 @@ void *seghandler(void* arg)
             for (int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
                 if (tcbs[i]) {
                     log("Sadly, socket %d has not been closed", i);
+                    tcbs[i]->state = CLOSEWAIT;
                     pthread_cond_signal(tcbs[i]->condition);
                 }
             }

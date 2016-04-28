@@ -121,4 +121,6 @@ int main(int argc, char *argv[]) {
 	
 	//停止重叠网络层
 	son_stop(son_conn);
+	extern pthread_t handler_tid;
+	pthread_join(handler_tid, NULL);
 }
