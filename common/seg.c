@@ -61,8 +61,12 @@ const char *seg_type_s(seg_t *seg)
     return seg_type_sym[seg->header.type];
 }
 
+unsigned short checksum(seg_t *seg);
 int sip_sendseg(int connection, seg_t *segptr)
 {
+	//caculate checksum
+	segptr->header.checksum = checksum(segptr);
+
     if (send(connection, SEG_BEGIN, SEG_BEGIN_LEN, 0) == -1) {
         return -1;
     }
@@ -101,6 +105,7 @@ int sip_sendseg(int connection, seg_t *segptr)
 //
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
+int checkchecksum(seg_t *seg);
 int sip_recvseg(int connection, seg_t *segptr)
 {
     char indicator;        // 是否开始读取 boundary_markup
@@ -120,12 +125,14 @@ int sip_recvseg(int connection, seg_t *segptr)
     // 读取段
     Recv(connection, &segptr->header, sizeof(segptr->header));
     Recv(connection, segptr->data, sizeof(*segptr->data) * segptr->header.length);
+	if(checkchecksum(segptr) == -1)
+		return 0;
 
     // 检查结束标记 "!#"
     indicator = '\0';
     Recv(connection, &indicator, sizeof(indicator));
     if (indicator != '!') {
-        return 0;
+        return 0; //段损坏
     }
 
     Recv(connection, &boundary_markup, sizeof(boundary_markup));
@@ -175,8 +182,37 @@ int seglost(seg_t *seg)
  */
 unsigned short checksum(seg_t *seg)
 {
-    // TODO Please implement me.
-    return 0;
+	//error
+	if(seg == NULL)
+		return 0;
+
+	seg->header.checksum = 0;
+	int len = seg->header.length;
+	unsigned int sum = 0;
+	unsigned short *p = (unsigned short*)seg;
+
+	//报文段首部24个字节，为12个short型数据
+	int i;
+	for(i = 0; i < 12; i++)
+		sum += p[i];
+
+	//有数据段
+	if(len > 0) {
+		//如果数据段为奇数长度，在最后填充一个0字节
+		if(len % 2 == 1) {
+			seg->data[len] = 0;
+			len++;
+		}
+
+		for(i = 12; i < 12 + len; i++)
+			sum += p[i];
+	}
+
+	sum = (sum & 0xFFFF) + (sum >> 16);
+	sum = (sum & 0xFFFF) + (sum >> 16); //有进位的话再相加
+
+	//log("send checksum = %x", sum);
+	return (unsigned short)(~sum);
 }
 
 /**
@@ -186,6 +222,35 @@ unsigned short checksum(seg_t *seg)
  */
 int checkchecksum(seg_t *seg)
 {
-    // TODO Please implement me.
-    return 0;
+    //error
+	if(seg == NULL)
+		return 0;
+
+	int len = seg->header.length;
+	//log("checksum in receive %x",seg->header.checksum);
+	unsigned int sum = 0;
+	unsigned short *p = (unsigned short*)seg;
+
+	int i;
+	for(i = 0; i < 12; i++)
+		sum += p[i];
+
+	if(len > 0) {
+		if(len % 2 == 1) {
+			seg->data[len] = 0;
+			len++;
+		}
+
+		for(i = 12; i < 12 + len; i++)
+			sum += p[i];
+	}
+
+	sum = (sum & 0xFFFF) + (sum >> 16);
+	sum = (sum & 0xFFFF) + (sum >> 16);
+
+	//log("receive checksum = %x",sum);
+	if((unsigned short)(~sum) != 0)
+		return -1;
+	else
+		return 1;
 }
