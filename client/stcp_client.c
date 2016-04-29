@@ -234,14 +234,14 @@ void *sendbuf_timer(void *arg)
         select(0, NULL, NULL, NULL, &tv);
 
         pthread_mutex_lock(tcb->bufMutex);
-        segBuf_t *curr = tcb->sendBufHead;
-        for (; curr != tcb->sendBufunSent; curr = curr->next) {
+        if (tcb->sendBufHead != tcb->sendBufunSent) {
             // The time out for a data segment is smaller than the SENDBUF_POLLING_INTERVAL.
             // Therefore we can assume that these data hasn't been acked.
-            LOG(tcb, "resends seq %d", curr->seg.header.seq_num);
-            sip_sendseg(son_connection, &curr->seg);
+            // We only need to send the first one, to minize the wasted traffic.
+            LOG(tcb, "resends seq %d", tcb->sendBufHead->seg.header.seq_num);
+            sip_sendseg(son_connection, &tcb->sendBufHead->seg);
         }
-        for (; curr != NULL; curr = curr->next) {
+        for (segBuf_t *curr = tcb->sendBufunSent; curr != NULL; curr = curr->next) {
             sip_sendseg(son_connection, &curr->seg);
             tcb->sendBufunSent = tcb->sendBufunSent->next;
         }
@@ -434,7 +434,6 @@ int stcp_client_close(int sockfd)
  */
 static void handle_dataack(client_tcb_t *tcb, seg_t *seg)
 {
-    // TODO Check seq
     Assert(seg->header.type == DATAACK, "Unexpected data type for this handler.");
     pthread_mutex_lock(tcb->bufMutex);
     while (tcb->sendBufHead != tcb->sendBufunSent) {
