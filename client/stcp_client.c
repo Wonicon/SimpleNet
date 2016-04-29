@@ -280,6 +280,14 @@ int stcp_client_send(int sockfd, void *data, unsigned int length)
         return -1;
     }
 
+    unsigned int rest_len = 0;
+    char *rest_data = NULL;
+    if (length > MAX_SEG_LEN) {
+        rest_len = length - MAX_SEG_LEN;
+        rest_data = (char *)data + MAX_SEG_LEN;
+        length = MAX_SEG_LEN;
+    }
+
     // Send buffer can be set up without locking.
     segBuf_t *sendbuf = calloc(1, sizeof(*sendbuf));
     sendbuf->next = NULL;
@@ -291,6 +299,8 @@ int stcp_client_send(int sockfd, void *data, unsigned int length)
     sendbuf->seg.header.seq_num = tcb->next_seqNum;
     tcb->next_seqNum += length;
     memcpy(sendbuf->seg.data, data, length);
+
+    checksum(&sendbuf->seg);
 
     pthread_mutex_lock(tcb->bufMutex);
     LOG(tcb, "adds send buffer under window size %d", tcb->unAck_segNum);
@@ -315,7 +325,12 @@ int stcp_client_send(int sockfd, void *data, unsigned int length)
     }
     pthread_mutex_unlock(tcb->bufMutex);
 
-    return 1;
+    if (rest_len != 0) {
+        return stcp_client_send(sockfd, rest_data, rest_len);
+    }
+    else {
+        return 1;
+    }
 }
 
 // 断开到STCP服务器的连接
@@ -342,6 +357,7 @@ int stcp_client_disconnect(int sockfd)
         return 0;
     }
     else {
+        while (tcb->sendBufHead != NULL) {}
         tcb->state = FINWAIT;
         LOG(tcb, "shifts into %s", state_to_s(tcb));
 

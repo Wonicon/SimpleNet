@@ -83,4 +83,6 @@ int sip_recvseg(int connection, seg_t* segPtr);
 // 如果段丢失了, 就返回1, 否则返回0.
 int seglost(seg_t *seg);
 
+unsigned short checksum(seg_t *seg);
+
 #endif
