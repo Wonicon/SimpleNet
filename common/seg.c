@@ -129,7 +129,7 @@ int sip_recvseg(int connection, seg_t *segptr)
 
 	if(checkchecksum(segptr) == -1) {
         log("checksum failed");
-        //return 1;
+        return 1;
     }
 
     // 检查结束标记 "!#"
@@ -146,6 +146,7 @@ int sip_recvseg(int connection, seg_t *segptr)
         return 2;
     }
 
+    return 0;
 	//丢包
     if(seglost(segptr) == 1)
 		return 1;
@@ -198,12 +199,13 @@ int seglost(seg_t *seg)
  */
 unsigned short checksum(seg_t *seg)
 {
+    return 0;
 	//error
 	if(seg == NULL)
 		return 0;
 
 	seg->header.checksum = 0;
-	int len = seg->header.length / 2;
+	int len = seg->header.length + seg->header.length % 2 ? 1 : 0;
 	unsigned int sum = 0;
 	unsigned short *p = (unsigned short *)seg;
 
@@ -238,11 +240,12 @@ unsigned short checksum(seg_t *seg)
  */
 int checkchecksum(seg_t *seg)
 {
+    return 1;
     //error
 	if(seg == NULL)
 		return 0;
 
-	int len = seg->header.length / 2;
+    int len = seg->header.length + seg->header.length % 2 ? 1 : 0;
 	//log("checksum in receive %x",seg->header.checksum);
 	unsigned int sum = 0;
 	unsigned short *p = (unsigned short *)seg;

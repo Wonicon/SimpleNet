@@ -411,6 +411,10 @@ void *seghandler(void* arg)
                     seg_type_s(&seg), seg.header.src_port, seg.header.dest_port);
             continue;
         }
+        else if (result == 2) {
+            log(RED "Oops, polluted" NORMAL); // Cannot log type name as the segment has corrupted.
+            continue;
+        }
 
         log(">>> Receive %s segment from %d to %d",
                 seg_type_s(&seg), seg.header.src_port, seg.header.dest_port);

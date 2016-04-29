@@ -305,11 +305,13 @@ int stcp_client_send(int sockfd, void *data, unsigned int length)
     checksum(&sendbuf->seg);
 
     pthread_mutex_lock(tcb->bufMutex);
+    /* TODO The condition varialbe on window size is buggy
     while (tcb->unAck_segNum == GBN_WINDOW) {
         LOG(tcb, "wait window clear");
         pthread_cond_wait(tcb->bufCond, tcb->bufMutex);
         LOG(tcb, "wake up");
     }
+     */
     LOG(tcb, "adds send buffer under window size %d", tcb->unAck_segNum);
     tcb->unAck_segNum++;
     if (tcb->sendBufTail == NULL) {
@@ -487,8 +489,10 @@ static void client_fsm(client_tcb_t *tcb, seg_t *seg) {
         case DATAACK:
             handle_dataack(tcb, seg);
             break;
+        case SYNACK:
+            break;
         default:
-            LOG(tcb, "WTF");
+            LOG(tcb, "receives unexpected segment");
             assert(0);
         }
         break;
@@ -539,8 +543,7 @@ void *seghandler(void* arg) {
         }
 		else if(result == 2) {
 			//段损坏
-			log(RED "Oops, polluted " NORMAL "%s" RED " from %d to %d" NORMAL,
-					seg_type_s(&seg), seg.header.src_port, seg.header.dest_port);
+			log(RED "Oops, polluted " NORMAL);
 			continue;
 		}
 
