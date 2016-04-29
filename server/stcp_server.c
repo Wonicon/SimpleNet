@@ -297,6 +297,13 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
 
             LOG(tcb, "enters state %s", state_to_s(tcb));
             break;
+        case DATA:
+            send_ctrl(DATAACK, seg->header.dest_port, seg->header.src_port);
+            seg->header.type = DATAACK;
+            LOG(tcb, "has sent %s", seg_type_s(seg));
+            break;
+        default:
+            LOG(tcb, "unexpected %s segment for state %s", seg_type_s(seg), server_state_s[CLOSEWAIT]);
         }
         break;
     case CLOSEWAIT:

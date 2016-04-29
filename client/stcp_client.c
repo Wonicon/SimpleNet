@@ -410,6 +410,19 @@ int stcp_client_close(int sockfd)
     return 0;
 }
 
+static void handle_dataack(client_tcb_t *tcb, seg_t *seg) {
+    // TODO Check seq
+    pthread_mutex_lock(tcb->bufMutex);
+    segBuf_t *tmp = tcb->sendBufHead;
+    tcb->sendBufHead = tcb->sendBufHead->next;
+    if (tmp == tcb->sendBufunSent) {
+        LOG(tcb, "Oops, send buffer header goes beyond unsent");
+        assert(0);
+    }
+    free(tmp);
+    pthread_mutex_unlock(tcb->bufMutex);
+}
+
 //客户端状态机
 static void client_fsm(client_tcb_t *tcb, seg_t *seg) {
     switch(tcb->state) {
@@ -428,9 +441,20 @@ static void client_fsm(client_tcb_t *tcb, seg_t *seg) {
         }
         break;
     case CONNECTED:
+        switch (seg->header.type) {
+        case DATAACK:
+            handle_dataack(tcb, seg);
+            break;
+        default:
+            LOG(tcb, "WTF");
+            assert(0);
+        }
         break;
     case FINWAIT:
         switch(seg->header.type) {
+        case DATAACK:
+            handle_dataack(tcb, seg);
+            break;
         case FINACK:
             tcb->state = CLOSED;
             LOG(tcb, "returns %s", client_state_s[CLOSED]);
