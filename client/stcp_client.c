@@ -239,7 +239,10 @@ void *sendbuf_timer(void *arg)
         pthread_mutex_lock(tcb->bufMutex);
         segBuf_t *curr = tcb->sendBufHead;
         for (; curr != tcb->sendBufunSent; curr = curr->next) {
-            // TODO check timeout
+            // The time out for a data segment is smaller than the SENDBUF_POLLING_INTERVAL.
+            // Therefore we can assume that these data hasn't been acked.
+            LOG(tcb, "resends seq %d", curr->seg.header.seq_num);
+            sip_sendseg(son_connection, &curr->seg);
         }
         for (; curr != NULL; curr = curr->next) {
             sip_sendseg(son_connection, &curr->seg);
