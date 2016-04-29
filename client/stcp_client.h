@@ -41,6 +41,7 @@ typedef struct client_tcb {
     unsigned int unAck_segNum;      //已发送但未收到确认段的数量
     int is_time_out;                // 记录超时事件
     struct timeval timeout;         // 超时值
+    pthread_cond_t *bufCond;        // On unAck_segNum == GBN_WINDOW
 } client_tcb_t;
 
 //

@@ -100,6 +100,8 @@ int stcp_client_sock(unsigned int client_port)
             //init mutex
             tcb->bufMutex = malloc(sizeof(*tcb->bufMutex));
             pthread_mutex_init(tcb->bufMutex, NULL);
+            tcb->bufCond = malloc(sizeof(*tcb->bufCond));
+            pthread_cond_init(tcb->bufCond, NULL);
 
             // init fields related to send
             tcb->sendBufHead = NULL;
@@ -303,6 +305,11 @@ int stcp_client_send(int sockfd, void *data, unsigned int length)
     checksum(&sendbuf->seg);
 
     pthread_mutex_lock(tcb->bufMutex);
+    while (tcb->unAck_segNum == GBN_WINDOW) {
+        LOG(tcb, "wait window clear");
+        pthread_cond_wait(tcb->bufCond, tcb->bufMutex);
+        LOG(tcb, "wake up");
+    }
     LOG(tcb, "adds send buffer under window size %d", tcb->unAck_segNum);
     tcb->unAck_segNum++;
     if (tcb->sendBufTail == NULL) {
@@ -320,6 +327,7 @@ int stcp_client_send(int sockfd, void *data, unsigned int length)
         tcb->sendBufTail = sendbuf;
         if (tcb->sendBufunSent == NULL) {
             LOG(tcb, "Send buffers are all sent but not acked yet");
+            assert(tcb->sendBufHead);
             tcb->sendBufunSent = sendbuf;
         }
     }
@@ -419,6 +427,7 @@ int stcp_client_close(int sockfd)
     pthread_mutex_unlock(tcb->bufMutex);
 
     free(tcb->bufMutex);
+    free(tcb->bufCond);
     // We do not need to free sendBufTail and sendBufUnsent,
     // as they should aside on the linked list started from starting from sendBufHead.
     free(tcb);
@@ -449,6 +458,9 @@ static void handle_dataack(client_tcb_t *tcb, seg_t *seg) {
         else {
             break;
         }
+    }
+    if (tcb->unAck_segNum < GBN_WINDOW) {
+        pthread_cond_signal(tcb->bufCond);
     }
     pthread_mutex_unlock(tcb->bufMutex);
 }
