@@ -119,25 +119,30 @@ int sip_recvseg(int connection, seg_t *segptr)
     } while (indicator != '!');
     Recv(connection, &boundary_markup, sizeof(boundary_markup));
     if (boundary_markup != '&') {
-        return 0;  // 段损坏
+        log("Unexpected boundary markup %c", boundary_markup);
+        return 1;  // 段损坏
     }
 
     // 读取段
     Recv(connection, &segptr->header, sizeof(segptr->header));
     Recv(connection, segptr->data, sizeof(*segptr->data) * segptr->header.length);
-	if(checkchecksum(segptr) == -1)
-		return 0;
+	if(checkchecksum(segptr) == -1) {
+        log("checksum failed");
+        //return 1;
+    }
 
     // 检查结束标记 "!#"
     indicator = '\0';
     Recv(connection, &indicator, sizeof(indicator));
     if (indicator != '!') {
-        return 0; //段损坏
+        log("end markup 1 failed");
+        return 1; //段损坏
     }
 
     Recv(connection, &boundary_markup, sizeof(boundary_markup));
     if (boundary_markup != '#') {
-        return 0;
+        log("end markup 2 failed");
+        return 1;
     }
 
     return seglost(segptr);
@@ -187,9 +192,9 @@ unsigned short checksum(seg_t *seg)
 		return 0;
 
 	seg->header.checksum = 0;
-	int len = seg->header.length;
+	int len = seg->header.length / 2;
 	unsigned int sum = 0;
-	unsigned short *p = (unsigned short*)seg;
+	unsigned short *p = (unsigned short *)seg;
 
 	//报文段首部24个字节，为12个short型数据
 	int i;
@@ -226,10 +231,10 @@ int checkchecksum(seg_t *seg)
 	if(seg == NULL)
 		return 0;
 
-	int len = seg->header.length;
+	int len = seg->header.length / 2;
 	//log("checksum in receive %x",seg->header.checksum);
 	unsigned int sum = 0;
-	unsigned short *p = (unsigned short*)seg;
+	unsigned short *p = (unsigned short *)seg;
 
 	int i;
 	for(i = 0; i < 12; i++)

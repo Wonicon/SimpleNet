@@ -300,6 +300,8 @@ int stcp_client_send(int sockfd, void *data, unsigned int length)
     tcb->next_seqNum += length;
     memcpy(sendbuf->seg.data, data, length);
 
+    checksum(&sendbuf->seg);
+
     pthread_mutex_lock(tcb->bufMutex);
     LOG(tcb, "adds send buffer under window size %d", tcb->unAck_segNum);
     tcb->unAck_segNum++;
@@ -355,6 +357,7 @@ int stcp_client_disconnect(int sockfd)
         return 0;
     }
     else {
+        while (tcb->sendBufHead != NULL) {}
         tcb->state = FINWAIT;
         LOG(tcb, "shifts into %s", state_to_s(tcb));
 
