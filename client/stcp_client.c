@@ -509,6 +509,12 @@ void *seghandler(void* arg) {
                     seg_type_s(&seg), seg.header.src_port, seg.header.dest_port);
             continue;
         }
+		else if(result == 2) {
+			//段损坏
+			log(RED "Oops, polluted " NORMAL "%s" RED " from %d to %d" NORMAL,
+					seg_type_s(&seg), seg.header.src_port, seg.header.dest_port);
+			continue;
+		}
 
         log(">>> Receive %s segment from %d to %d",
                 seg_type_s(&seg), seg.header.src_port, seg.header.dest_port);
