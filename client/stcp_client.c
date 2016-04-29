@@ -240,14 +240,10 @@ void *sendbuf_timer(void *arg)
         segBuf_t *curr = tcb->sendBufHead;
         for (; curr != tcb->sendBufunSent; curr = curr->next) {
             // TODO check timeout
-            LOG(tcb, "time out checked");
         }
         for (; curr != NULL; curr = curr->next) {
             sip_sendseg(son_connection, &curr->seg);
             tcb->sendBufunSent = tcb->sendBufunSent->next;
-        }
-        if (tcb->sendBufunSent == NULL) {
-            LOG(tcb, "all segments have been sent");
         }
         if (tcb->sendBufHead == NULL) {
             LOG(tcb, "send buffer timer exits");
@@ -290,6 +286,7 @@ int stcp_client_send(int sockfd, void *data, unsigned int length)
     sendbuf->seg.header.dest_port = tcb->server_portNum;
     sendbuf->seg.header.length = length;
     sendbuf->seg.header.seq_num = tcb->next_seqNum;
+    tcb->next_seqNum += length;
     memcpy(sendbuf->seg.data, data, length);
 
     pthread_mutex_lock(tcb->bufMutex);
@@ -410,16 +407,30 @@ int stcp_client_close(int sockfd)
     return 0;
 }
 
+/**
+ * @brief Modify send buffer list according to the DATAACK segment.
+ * @param tcb The tcb to which the send buffer list belongs.
+ * @param seg The DATAACK segment.
+ *
+ * Release all of the send buffers whose sequence number (a.k.a. the starting byte index) is less than
+ * the DATAACK's sequence number (a.k.a. the expected sequence from server)
+ */
 static void handle_dataack(client_tcb_t *tcb, seg_t *seg) {
     // TODO Check seq
+    assert(seg->header.type == DATAACK);
     pthread_mutex_lock(tcb->bufMutex);
-    segBuf_t *tmp = tcb->sendBufHead;
-    tcb->sendBufHead = tcb->sendBufHead->next;
-    if (tmp == tcb->sendBufunSent) {
-        LOG(tcb, "Oops, send buffer header goes beyond unsent");
-        assert(0);
+    while (tcb->sendBufHead != tcb->sendBufunSent) {
+        if (tcb->sendBufHead->seg.header.seq_num < seg->header.seq_num) {
+            segBuf_t *tmp = tcb->sendBufHead;
+            LOG(tcb, "release acked send buffer (seq num %d)", tmp->seg.header.seq_num);
+            tcb->sendBufHead = tcb->sendBufHead->next;
+            tcb->unAck_segNum--;
+            free(tmp);
+        }
+        else {
+            break;
+        }
     }
-    free(tmp);
     pthread_mutex_unlock(tcb->bufMutex);
 }
 
@@ -453,6 +464,10 @@ static void client_fsm(client_tcb_t *tcb, seg_t *seg) {
     case FINWAIT:
         switch(seg->header.type) {
         case DATAACK:
+            // As stcp_client_send() is non-blocking, so the client may immediately get into FINWAIT state.
+            // This state won't stay long enough to handle all DATAACK in a high missing rate.
+            // If DATAACK segment is missed and a FINACK arrives, the client will release the send buffers,
+            // which may result in unexpected behaviors.
             handle_dataack(tcb, seg);
             break;
         case FINACK:

@@ -253,6 +253,23 @@ static inline void send_ctrl(unsigned short type, unsigned short src_port, unsig
 }
 
 /**
+ * @brief 发送 DATAACK
+ */
+static inline void send_dataack(unsigned int seq, unsigned short src_port, unsigned short dst_port)
+{
+    seg_t synack = {
+            .header.src_port = src_port,
+            .header.dest_port = dst_port,
+            .header.length = 0,
+            .header.type = DATAACK,
+            .header.seq_num = seq,
+    };
+    if (sip_sendseg(son_connection, &synack) == -1) {
+        log("sending ctrl to port %d failed", dst_port);
+    }
+}
+
+/**
  * @brief TCB 状态机
  */
 static void server_fsm(server_tcb_t *tcb, seg_t *seg)
@@ -298,9 +315,15 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
             LOG(tcb, "enters state %s", state_to_s(tcb));
             break;
         case DATA:
-            send_ctrl(DATAACK, seg->header.dest_port, seg->header.src_port);
-            seg->header.type = DATAACK;
-            LOG(tcb, "has sent %s", seg_type_s(seg));
+            if (tcb->expect_seqNum == seg->header.seq_num) {
+                tcb->expect_seqNum += seg->header.length;
+                send_dataack(tcb->expect_seqNum, seg->header.dest_port, seg->header.src_port);
+                seg->header.type = DATAACK;
+                LOG(tcb, "has sent %s (expected seq %d -> %d)", seg_type_s(seg), seg->header.seq_num, tcb->expect_seqNum);
+            }
+            else {
+                LOG(tcb, "expects seq num %d, but receives %d", tcb->expect_seqNum, seg->header.seq_num);
+            }
             break;
         default:
             LOG(tcb, "unexpected %s segment for state %s", seg_type_s(seg), server_state_s[CLOSEWAIT]);
