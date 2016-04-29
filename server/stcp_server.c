@@ -350,6 +350,7 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
                 LOG(tcb, "has sent %s (expected seq %d -> %d)", seg_type_s(seg), seg->header.seq_num, tcb->expect_seqNum);
             } else {
                 LOG(tcb, "expects seq num %d, but receives %d", tcb->expect_seqNum, seg->header.seq_num);
+                send_dataack(tcb->expect_seqNum, seg->header.dest_port, seg->header.src_port);
             }
             break;
         default:
