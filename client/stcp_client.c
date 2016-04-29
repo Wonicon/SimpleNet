@@ -299,13 +299,11 @@ int stcp_client_send(int sockfd, void *data, unsigned int length)
     checksum(&sendbuf->seg);
 
     pthread_mutex_lock(tcb->bufMutex);
-    /* TODO The condition varialbe on window size is buggy
     while (tcb->unAck_segNum == GBN_WINDOW) {
         LOG(tcb, "wait window clear");
         pthread_cond_wait(tcb->bufCond, tcb->bufMutex);
-        LOG(tcb, "wake up");
+        LOG(tcb, "wake up with unAck_segNum %d", tcb->unAck_segNum);
     }
-     */
     LOG(tcb, "adds send buffer under window size %d", tcb->unAck_segNum);
     tcb->unAck_segNum++;
     if (tcb->sendBufTail == NULL) {
@@ -440,6 +438,7 @@ static void handle_dataack(client_tcb_t *tcb, seg_t *seg)
     Assert(seg->header.type == DATAACK, "Unexpected data type for this handler.");
     pthread_mutex_lock(tcb->bufMutex);
     while (tcb->sendBufHead != tcb->sendBufunSent) {
+        //LOG(tcb, "buffered seq %d, expected seq %d", tcb->sendBufHead->seg.header.seq_num, seg->header.seq_num);
         if (tcb->sendBufHead->seg.header.seq_num < seg->header.seq_num) {
             segBuf_t *tmp = tcb->sendBufHead;
             LOG(tcb, "release acked send buffer (seq num %d)", tmp->seg.header.seq_num);
@@ -450,8 +449,9 @@ static void handle_dataack(client_tcb_t *tcb, seg_t *seg)
             break;
         }
     }
-    Assert(tcb->sendBufHead == NULL && tcb->sendBufunSent != NULL,
-           "All segments have been acked but some remain unsent !?");
+    if (tcb->sendBufHead == NULL) {
+        tcb->sendBufTail = NULL;
+    }
     if (tcb->unAck_segNum < GBN_WINDOW) {
         pthread_cond_signal(tcb->bufCond);
     }
