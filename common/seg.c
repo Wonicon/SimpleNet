@@ -64,8 +64,8 @@ const char *seg_type_s(seg_t *seg)
 unsigned short checksum(seg_t *seg);
 int sip_sendseg(int connection, seg_t *segptr)
 {
-	//caculate checksum
-	segptr->header.checksum = checksum(segptr);
+    //caculate checksum
+    segptr->header.checksum = checksum(segptr);
 
     if (send(connection, SEG_BEGIN, SEG_BEGIN_LEN, 0) == -1) {
         return -1;
@@ -127,7 +127,7 @@ int sip_recvseg(int connection, seg_t *segptr)
     Recv(connection, &segptr->header, sizeof(segptr->header));
     Recv(connection, segptr->data, sizeof(*segptr->data) * segptr->header.length);
 
-	if(checkchecksum(segptr) == -1) {
+    if (checkchecksum(segptr) == -1) {
         log("checksum failed");
         return 1;
     }
@@ -146,19 +146,17 @@ int sip_recvseg(int connection, seg_t *segptr)
         return 2;
     }
 
-	//丢包
-    if(seglost(segptr) == 1) {
+    //丢包
+    if (seglost(segptr) == 1) {
         return 1;
-    }
-	else {
-		//段损坏(校验和错误)
-		if(checkchecksum(segptr)) {
+    } else {
+        //段损坏(校验和错误)
+        if (checkchecksum(segptr)) {
             return 0;
-        }
-		else {
+        } else {
             return 2;
         }
-	}
+    }
 }
 
 int seglost(seg_t *seg)
@@ -168,8 +166,7 @@ int seglost(seg_t *seg)
         if ((rand() % 2) == 0) {
             // 50% to discard the segment
             return 1;
-        }
-        else if (seg != NULL) {
+        } else if (seg != NULL) {
             // 50% to pollute the segment
             log("A %s segment will be polluted", seg_type_s(seg));
             int len = sizeof(seg->header) + seg->header.length;
@@ -178,12 +175,10 @@ int seglost(seg_t *seg)
             temp = temp + error_bit / 8;
             *temp = *temp ^ (1 << (error_bit % 8));  // flip-flop a bit
             return 0;
-        }
-        else {
+        } else {
             return 0;
         }
-    }
-    else {
+    } else {
         return 0;
     }
 }
@@ -200,13 +195,13 @@ static unsigned short calc_checksum(seg_t *seg)
     }
 
     //报文段首部24个字节，为12个short型数据
-    for(int i = 0; i < 12; i++) {
+    for (int i = 0; i < 12; i++) {
         sum += p[i];
     }
 
     //有数据段
-    if(len > 0) {
-        for(int i = 12; i < 12 + len/2; i++) {
+    if (len > 0) {
+        for (int i = 12; i < 12 + len / 2; i++) {
             sum += p[i];
         }
     }
@@ -229,10 +224,10 @@ static unsigned short calc_checksum(seg_t *seg)
  */
 unsigned short checksum(seg_t *seg)
 {
-	if(seg == NULL) {
+    if (seg == NULL) {
         return 0;
     }
-	seg->header.checksum = 0;
+    seg->header.checksum = 0;
     return calc_checksum(seg);
 }
 
@@ -244,7 +239,7 @@ unsigned short checksum(seg_t *seg)
 int checkchecksum(seg_t *seg)
 {
     //error
-	if(seg == NULL) {
+    if (seg == NULL) {
         return 0;
     }
     return calc_checksum(seg) == 0;

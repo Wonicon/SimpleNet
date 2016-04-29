@@ -43,7 +43,7 @@ int son_start(char *serv_ip)
 {
     //创建套接字
     int fd = socket(AF_INET, SOCK_STREAM, 0);
-    if(fd < 0) {
+    if (fd < 0) {
         sys_panic("socket");
     }
 
@@ -53,7 +53,7 @@ int son_start(char *serv_ip)
         .sin_port        = htons(son_port),
     };
 
-    if(connect(fd,(struct sockaddr*)&serv_addr,sizeof(serv_addr)) < 0)
+    if (connect(fd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
         sys_panic("connect");
 
     return fd;
@@ -95,15 +95,13 @@ int main(int argc, char *argv[])
     //用于丢包率的随机数种子
     srand(time(NULL));
 
-    if(argc < 3) {
+    if (argc < 3) {
         son_port = SON_PORT;
-    }
-    else {
+    } else {
         int port = atoi(argv[2]);
-        if(!(port > 0 && port < SHRT_MAX)) {
+        if (!(port > 0 && port < SHRT_MAX)) {
             panic("%d exceeds short limit", port);
-        }
-        else {
+        } else {
             son_port = (short)port;
         }
     }
@@ -112,7 +110,7 @@ int main(int argc, char *argv[])
 
     //启动重叠网络层并获取重叠网络层TCP套接字描述符
     son_conn = son_start(argc > 1 ? argv[1] : "127.0.0.1");
-    if(son_conn < 0) {
+    if (son_conn < 0) {
         log("Fail to start overlay network");
         Exit(1);
     }
@@ -125,11 +123,11 @@ int main(int argc, char *argv[])
 
     //在端口87上创建STCP客户端套接字, 并连接到STCP服务器端口88
     int sockfd = stcp_client_sock(CLIENTPORT1);
-    if(sockfd < 0) {
+    if (sockfd < 0) {
         log("Fail to create stcp client sock");
         Exit(1);
     }
-    if(stcp_client_connect(sockfd, SERVERPORT1) < 0) {
+    if (stcp_client_connect(sockfd, SERVERPORT1) < 0) {
         log("Fail to connect to stcp server");
         Exit(1);
     }
@@ -138,11 +136,11 @@ int main(int argc, char *argv[])
 
     //在端口89上创建STCP客户端套接字, 并连接到STCP服务器端口90
     int sockfd2 = stcp_client_sock(CLIENTPORT2);
-    if(sockfd2 < 0) {
+    if (sockfd2 < 0) {
         log("Fail to create stcp client sock");
         Exit(1);
     }
-    if(stcp_client_connect(sockfd2, SERVERPORT2) < 0) {
+    if (stcp_client_connect(sockfd2, SERVERPORT2) < 0) {
         log("Fail to connect to stcp server");
         Exit(1);
     }
@@ -153,24 +151,24 @@ int main(int argc, char *argv[])
     log("Wait a while to disconnect");
     sleep(WAITTIME);
 
-    if(stcp_client_disconnect(sockfd) < 0) {
+    if (stcp_client_disconnect(sockfd) < 0) {
         log("fail to disconnect from stcp server");
     }
 
     log("disconnected socket 0");
 
-    if(stcp_client_close(sockfd) < 0) {
+    if (stcp_client_close(sockfd) < 0) {
         log("fail to close stcp client");
         Exit(1);
     }
 
-    if(stcp_client_disconnect(sockfd2) < 0) {
+    if (stcp_client_disconnect(sockfd2) < 0) {
         log("fail to disconnect from stcp server");
     }
 
     log("disconnected socket 1");
 
-    if(stcp_client_close(sockfd2) < 0) {
+    if (stcp_client_close(sockfd2) < 0) {
         log("fail to close stcp client");
         Exit(1);
     }

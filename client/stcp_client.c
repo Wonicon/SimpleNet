@@ -66,7 +66,7 @@ pthread_t handler_tid;
 
 void stcp_client_init(int conn)
 {
-    for(int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
+    for (int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
         tcbs[i] = NULL;
     }
     log("client TCB pool has been initialized.");
@@ -89,8 +89,8 @@ void stcp_client_init(int conn)
 
 int stcp_client_sock(unsigned int client_port)
 {
-    for(int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
-        if(tcbs[i] == NULL) {
+    for (int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
+        if (tcbs[i] == NULL) {
             client_tcb_t *tcb = calloc(1, sizeof(*tcb));
 
             tcb->client_portNum = client_port;
@@ -125,18 +125,18 @@ int stcp_client_sock(unsigned int client_port)
 
 //发送报文
 static inline int
-send_ctrl(unsigned short type, unsigned short src_port, unsigned short dst_port) {
+send_ctrl(unsigned short type, unsigned short src_port, unsigned short dst_port)
+{
     seg_t syn = {
         .header.src_port = src_port,
         .header.dest_port = dst_port,
         .header.length = 0,
         .header.type = type,
     };
-    if(sip_sendseg(son_connection, &syn) == -1) {
+    if (sip_sendseg(son_connection, &syn) == -1) {
         log("sending ctrl to port %d failed", dst_port);
         return -1;
-    }
-    else {
+    } else {
         return 1;
     }
 }
@@ -168,8 +168,7 @@ static void *timer(void *arg)
     if (prev == tcb->state) {
         LOG(tcb, "timer ends under the same state %s", state_to_s(tcb));
         tcb->is_time_out = 1;  // Allow logs to keep sequence
-    }
-    else {
+    } else {
         LOG(tcb, "timer ends from %s to %s", client_state_s[prev], state_to_s(tcb));
     }
     return arg;
@@ -182,15 +181,13 @@ int stcp_client_connect(int sockfd, unsigned int server_port)
 {
     client_tcb_t *tcb = tcbs[sockfd];
 
-    if(tcb == NULL) {
-        log("Invalid stcp socket %d",sockfd);
+    if (tcb == NULL) {
+        log("Invalid stcp socket %d", sockfd);
         return 0;
-    }
-    else if(tcb->state != CLOSED) {
+    } else if (tcb->state != CLOSED) {
         log("The state of this stcp socket is not CLOSED");
         return 0;
-    }
-    else {
+    } else {
         tcb->server_portNum = server_port;
         tcb->state = SYNSENT;
         LOG(tcb, "shifts into %s", state_to_s(tcb));
@@ -213,8 +210,7 @@ int stcp_client_connect(int sockfd, unsigned int server_port)
             if (tcb->state == CONNECTED) {
                 LOG(tcb, "connection %d shifts into %s", sockfd, state_to_s(tcb));
                 return 1;
-            }
-            else {
+            } else {
                 LOG(tcb, "%s time out", state_to_s(tcb));
             }
 
@@ -276,8 +272,7 @@ int stcp_client_send(int sockfd, void *data, unsigned int length)
     if (tcb == NULL) {
         log(RED "The socket %d is invalid" NORMAL, sockfd);
         return -1;
-    }
-    else if (tcb->state != CONNECTED) {
+    } else if (tcb->state != CONNECTED) {
         LOG(tcb, "is under %s, and cannot send data", state_to_s(tcb));
         return -1;
     }
@@ -323,8 +318,7 @@ int stcp_client_send(int sockfd, void *data, unsigned int length)
         tcb->sendBufunSent = tcb->sendBufHead;
         pthread_t tid;
         pthread_create(&tid, NULL, sendbuf_timer, tcb);
-    }
-    else {
+    } else {
         tcb->sendBufTail->next = sendbuf;
         tcb->sendBufTail = sendbuf;
         if (tcb->sendBufunSent == NULL) {
@@ -337,8 +331,7 @@ int stcp_client_send(int sockfd, void *data, unsigned int length)
 
     if (rest_len != 0) {
         return stcp_client_send(sockfd, rest_data, rest_len);
-    }
-    else {
+    } else {
         return 1;
     }
 }
@@ -357,16 +350,14 @@ int stcp_client_disconnect(int sockfd)
 {
     client_tcb_t *tcb = tcbs[sockfd];
 
-    if(tcb == NULL) {
+    if (tcb == NULL) {
         log("Invalid stcp socket %d", sockfd);
         return 0;
-    }
-    else if(tcb->state != CONNECTED) {
+    } else if (tcb->state != CONNECTED) {
         log("Socket %d is to be disconnected but under %s",
-                sockfd, client_state_s[tcb->state]);
+            sockfd, client_state_s[tcb->state]);
         return 0;
-    }
-    else {
+    } else {
         while (tcb->sendBufHead != NULL) {}
         tcb->state = FINWAIT;
         LOG(tcb, "shifts into %s", state_to_s(tcb));
@@ -390,8 +381,7 @@ int stcp_client_disconnect(int sockfd)
             if (tcb->state == CLOSED) {
                 LOG(tcb, "Socket %d shifts into %s", sockfd, state_to_s(tcb));
                 return 0;
-            }
-            else {
+            } else {
                 LOG(tcb, "%s time out", state_to_s(tcb));
             }
 
@@ -445,7 +435,8 @@ int stcp_client_close(int sockfd)
  * Release all of the send buffers whose sequence number (a.k.a. the starting byte index) is less than
  * the DATAACK's sequence number (a.k.a. the expected sequence from server)
  */
-static void handle_dataack(client_tcb_t *tcb, seg_t *seg) {
+static void handle_dataack(client_tcb_t *tcb, seg_t *seg)
+{
     // TODO Check seq
     assert(seg->header.type == DATAACK);
     pthread_mutex_lock(tcb->bufMutex);
@@ -456,8 +447,7 @@ static void handle_dataack(client_tcb_t *tcb, seg_t *seg) {
             tcb->sendBufHead = tcb->sendBufHead->next;
             tcb->unAck_segNum--;
             free(tmp);
-        }
-        else {
+        } else {
             break;
         }
     }
@@ -468,20 +458,21 @@ static void handle_dataack(client_tcb_t *tcb, seg_t *seg) {
 }
 
 //客户端状态机
-static void client_fsm(client_tcb_t *tcb, seg_t *seg) {
-    switch(tcb->state) {
+static void client_fsm(client_tcb_t *tcb, seg_t *seg)
+{
+    switch (tcb->state) {
     case CLOSED:
         log("Unexpected %s state", client_state_s[CLOSED]);
         break;
     case SYNSENT:
-        switch(seg->header.type) {
+        switch (seg->header.type) {
         case SYNACK:
             tcb->state = CONNECTED;
             LOG(tcb, "enters %s state", state_to_s(tcb));
             break;
         default:
             LOG(tcb, "receives unexpect %s segment under %s",
-                    seg_type_s(seg), client_state_s[SYNSENT]);
+                seg_type_s(seg), client_state_s[SYNSENT]);
         }
         break;
     case CONNECTED:
@@ -497,7 +488,7 @@ static void client_fsm(client_tcb_t *tcb, seg_t *seg) {
         }
         break;
     case FINWAIT:
-        switch(seg->header.type) {
+        switch (seg->header.type) {
         case DATAACK:
             // As stcp_client_send() is non-blocking, so the client may immediately get into FINWAIT state.
             // This state won't stay long enough to handle all DATAACK in a high missing rate.
@@ -511,7 +502,7 @@ static void client_fsm(client_tcb_t *tcb, seg_t *seg) {
             break;
         default:
             LOG(tcb, "receives unexpect %s segment under %s",
-                    seg_type_s(seg), client_state_s[FINWAIT]);
+                seg_type_s(seg), client_state_s[FINWAIT]);
         }
         break;
     default:
@@ -525,8 +516,9 @@ static void client_fsm(client_tcb_t *tcb, seg_t *seg) {
 // seghandler被设计为一个调用sip_recvseg()的无穷循环. 如果sip_recvseg()失败, 则说明重叠网络连接已关闭,
 // 线程将终止. 根据STCP段到达时连接所处的状态, 可以采取不同的动作. 请查看客户端FSM以了解更多细节.
 
-void *seghandler(void* arg) {
-    for(;;) {
+void *seghandler(void* arg)
+{
+    for (;;) {
         seg_t seg = {};
         int result = sip_recvseg(son_connection, &seg);
         if (result == -1) {
@@ -534,24 +526,22 @@ void *seghandler(void* arg) {
             log("SON closed");
             son_connection = -1;
             break;
-        }
-        else if (result == 1) {
+        } else if (result == 1) {
             // 丢包
             log(RED "Oops, missing " NORMAL "%s" RED " from %d to %d" NORMAL,
-                    seg_type_s(&seg), seg.header.src_port, seg.header.dest_port);
+                seg_type_s(&seg), seg.header.src_port, seg.header.dest_port);
+            continue;
+        } else if (result == 2) {
+            //段损坏
+            log(RED "Oops, polluted " NORMAL);
             continue;
         }
-		else if(result == 2) {
-			//段损坏
-			log(RED "Oops, polluted " NORMAL);
-			continue;
-		}
 
         log(">>> Receive %s segment from %d to %d",
-                seg_type_s(&seg), seg.header.src_port, seg.header.dest_port);
+            seg_type_s(&seg), seg.header.src_port, seg.header.dest_port);
 
-        for(int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
-            if(tcbs[i] && tcbs[i]->client_portNum == seg.header.dest_port) {
+        for (int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
+            if (tcbs[i] && tcbs[i]->client_portNum == seg.header.dest_port) {
                 client_fsm(tcbs[i], &seg);
                 break;  // efficiency!
             }

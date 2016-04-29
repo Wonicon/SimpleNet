@@ -146,12 +146,10 @@ int stcp_server_accept(int sockfd)
     if (tcb == NULL) {
         log("Invalid stcp socket %d", sockfd);
         return 0;
-    }
-    else if (tcb->state != CLOSED) {
+    } else if (tcb->state != CLOSED) {
         log("The state of this stcp socket is not %s", server_state_s[CLOSED]);
         return 0;
-    }
-    else {
+    } else {
         pthread_mutex_lock(tcb->mutex);
         tcb->state = LISTENING;
         pthread_mutex_unlock(tcb->mutex);
@@ -278,11 +276,11 @@ static inline void send_ctrl(unsigned short type, unsigned short src_port, unsig
 static inline void send_dataack(unsigned int seq, unsigned short src_port, unsigned short dst_port)
 {
     seg_t synack = {
-            .header.src_port = src_port,
-            .header.dest_port = dst_port,
-            .header.length = 0,
-            .header.type = DATAACK,
-            .header.seq_num = seq,
+        .header.src_port = src_port,
+        .header.dest_port = dst_port,
+        .header.length = 0,
+        .header.type = DATAACK,
+        .header.seq_num = seq,
     };
     if (sip_sendseg(son_connection, &synack) == -1) {
         log("sending ctrl to port %d failed", dst_port);
@@ -350,8 +348,7 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
                 send_dataack(tcb->expect_seqNum, seg->header.dest_port, seg->header.src_port);
                 seg->header.type = DATAACK;
                 LOG(tcb, "has sent %s (expected seq %d -> %d)", seg_type_s(seg), seg->header.seq_num, tcb->expect_seqNum);
-            }
-            else {
+            } else {
                 LOG(tcb, "expects seq num %d, but receives %d", tcb->expect_seqNum, seg->header.seq_num);
             }
             break;
@@ -404,20 +401,18 @@ void *seghandler(void* arg)
             }
 
             break;
-        }
-        else if (result == 1) {
+        } else if (result == 1) {
             // 丢包
             log(RED "Oops, missing " NORMAL "%s" RED " from %d to %d" NORMAL,
-                    seg_type_s(&seg), seg.header.src_port, seg.header.dest_port);
+                seg_type_s(&seg), seg.header.src_port, seg.header.dest_port);
             continue;
-        }
-        else if (result == 2) {
+        } else if (result == 2) {
             log(RED "Oops, polluted" NORMAL); // Cannot log type name as the segment has corrupted.
             continue;
         }
 
         log(">>> Receive %s segment from %d to %d",
-                seg_type_s(&seg), seg.header.src_port, seg.header.dest_port);
+            seg_type_s(&seg), seg.header.src_port, seg.header.dest_port);
 
         // Search & forward.
         // TODO non-block!!!

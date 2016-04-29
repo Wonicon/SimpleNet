@@ -1,8 +1,8 @@
 //文件名: server/app_stress_server.c
 
-//描述: 这是压力测试版本的服务器程序代码. 服务器首先通过在客户端和服务器之间创建TCP连接,启动重叠网络层. 
+//描述: 这是压力测试版本的服务器程序代码. 服务器首先通过在客户端和服务器之间创建TCP连接,启动重叠网络层.
 //然后它调用stcp_server_init()初始化STCP服务器. 它通过调用stcp_server_sock()和stcp_server_accept()创建一个套接字并等待来自客户端的连接.
-//它然后接收文件长度. 在这之后, 它创建一个缓冲区, 接收文件数据并将它保存到receivedtext.txt文件中. 
+//它然后接收文件长度. 在这之后, 它创建一个缓冲区, 接收文件数据并将它保存到receivedtext.txt文件中.
 //最后, 服务器通过调用stcp_server_close()关闭套接字. 重叠网络层通过调用son_stop()停止.
 
 //创建日期: 2015年
@@ -26,7 +26,7 @@
 #include "common.h"
 #include "stcp_server.h"
 
-//创建一个连接, 使用客户端端口号87和服务器端口号88. 
+//创建一个连接, 使用客户端端口号87和服务器端口号88.
 #define CLIENTPORT1 87
 #define SERVERPORT1 88
 //在接收的文件数据被保存后, 服务器等待10秒, 然后关闭连接.
@@ -85,52 +85,53 @@ void son_stop(int son_conn)
     // 在进程退出后自动关闭监听套接字。
 }
 
-int main(int argc, char *args[]) {
-	//用于丢包率的随机数种子
-	srand(time(NULL));
+int main(int argc, char *args[])
+{
+    //用于丢包率的随机数种子
+    srand(time(NULL));
 
-	//启动重叠网络层并获取重叠网络层TCP套接字描述符
+    //启动重叠网络层并获取重叠网络层TCP套接字描述符
     son_port = argc > 1 ? atoi(args[1]) : SON_PORT;
-	int son_conn = son_start();
-	if(son_conn<0) {
-		printf("can not start overlay network\n");
-	}
+    int son_conn = son_start();
+    if (son_conn < 0) {
+        printf("can not start overlay network\n");
+    }
 
-	//初始化STCP服务器
-	stcp_server_init(son_conn);
+    //初始化STCP服务器
+    stcp_server_init(son_conn);
 
-	//在端口SERVERPORT1上创建STCP服务器套接字 
-	int sockfd= stcp_server_sock(SERVERPORT1);
-	if(sockfd<0) {
-		printf("can't create stcp server\n");
-		exit(1);
-	}
-	//监听并接受来自STCP客户端的连接 
-	stcp_server_accept(sockfd);
+    //在端口SERVERPORT1上创建STCP服务器套接字
+    int sockfd = stcp_server_sock(SERVERPORT1);
+    if (sockfd < 0) {
+        printf("can't create stcp server\n");
+        exit(1);
+    }
+    //监听并接受来自STCP客户端的连接
+    stcp_server_accept(sockfd);
 
-	//首先接收文件长度, 然后接收文件数据 
-	int fileLen;
-	stcp_server_recv(sockfd,&fileLen,sizeof(int));
-	char* buf = (char*) malloc(fileLen);
-	stcp_server_recv(sockfd,buf,fileLen);
+    //首先接收文件长度, 然后接收文件数据
+    int fileLen;
+    stcp_server_recv(sockfd, &fileLen, sizeof(int));
+    char* buf = (char*) malloc(fileLen);
+    stcp_server_recv(sockfd, buf, fileLen);
 
-	//将接收到的文件数据保存到文件receivedtext.txt中
-	FILE* f;
-	f = fopen("receivedtext.txt","w");
-	fwrite(buf,fileLen,1,f);
-	fclose(f);
-	free(buf);
+    //将接收到的文件数据保存到文件receivedtext.txt中
+    FILE* f;
+    f = fopen("receivedtext.txt", "w");
+    fwrite(buf, fileLen, 1, f);
+    fclose(f);
+    free(buf);
 
-	sleep(WAITTIME);
+    sleep(WAITTIME);
 
-	//关闭STCP服务器 
-	if(stcp_server_close(sockfd)<0) {
-		printf("can't destroy stcp server\n");
-		exit(1);
-	}				
+    //关闭STCP服务器
+    if (stcp_server_close(sockfd) < 0) {
+        printf("can't destroy stcp server\n");
+        exit(1);
+    }
 
-	//停止重叠网络层
-	son_stop(son_conn);
-	extern pthread_t handler_tid;
-	pthread_join(handler_tid, NULL);
+    //停止重叠网络层
+    son_stop(son_conn);
+    extern pthread_t handler_tid;
+    pthread_join(handler_tid, NULL);
 }

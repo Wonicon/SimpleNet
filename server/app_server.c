@@ -96,13 +96,11 @@ int main(int argc, char *argv[])
 
     if (argc < 2) {
         son_port = SON_PORT;
-    }
-    else {
+    } else {
         int port = atoi(argv[1]);
         if (!(port > 0 && port < SHRT_MAX)) {
             panic("%d exceeds short limit", port);
-        }
-        else {
+        } else {
             son_port = (short)port;
         }
     }
@@ -111,7 +109,7 @@ int main(int argc, char *argv[])
 
     //启动重叠网络层并获取重叠网络层TCP套接字描述符
     int son_conn = son_start();
-    if(son_conn < 0) {
+    if (son_conn < 0) {
         sys_panic("can not start overlay network\n");
     }
 
@@ -122,7 +120,7 @@ int main(int argc, char *argv[])
 
     //在端口SERVERPORT1上创建STCP服务器套接字
     int sockfd = stcp_server_sock(SERVERPORT1);
-    if(sockfd < 0) {
+    if (sockfd < 0) {
         printf("can't create stcp server\n");
         exit(1);
     }
@@ -131,7 +129,7 @@ int main(int argc, char *argv[])
 
     //在端口SERVERPORT2上创建另一个STCP服务器套接字
     int sockfd2 = stcp_server_sock(SERVERPORT2);
-    if(sockfd2 < 0) {
+    if (sockfd2 < 0) {
         printf("can't create stcp server\n");
         exit(1);
     }
@@ -141,11 +139,11 @@ int main(int argc, char *argv[])
     sleep(WAITTIME);
 
     //关闭STCP服务器
-    if(stcp_server_close(sockfd) < 0) {
+    if (stcp_server_close(sockfd) < 0) {
         printf("can't destroy stcp server\n");
         exit(1);
     }
-    if(stcp_server_close(sockfd2) < 0) {
+    if (stcp_server_close(sockfd2) < 0) {
         printf("can't destroy stcp server\n");
         exit(1);
     }

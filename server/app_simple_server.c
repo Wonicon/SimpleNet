@@ -1,7 +1,7 @@
 //文件名: server/app_simple_server.c
 
-//描述: 这是简单版本的服务器程序代码. 服务器首先通过在客户端和服务器之间创建TCP连接,启动重叠网络层. 然后它调用stcp_server_init()初始化STCP服务器. 
-//它通过两次调用stcp_server_sock()和stcp_server_accept()创建2个套接字并等待来自客户端的连接. 服务器然后接收来自两个连接的客户端发送的短字符串. 
+//描述: 这是简单版本的服务器程序代码. 服务器首先通过在客户端和服务器之间创建TCP连接,启动重叠网络层. 然后它调用stcp_server_init()初始化STCP服务器.
+//它通过两次调用stcp_server_sock()和stcp_server_accept()创建2个套接字并等待来自客户端的连接. 服务器然后接收来自两个连接的客户端发送的短字符串.
 //最后, 服务器通过调用stcp_server_close()关闭套接字. 重叠网络层通过调用son_stop()停止.
 
 //创建日期: 2015年
@@ -87,66 +87,67 @@ void son_stop(int son_conn)
     // 在进程退出后自动关闭监听套接字。
 }
 
-int main(int argc, char *argv[]) {
-	//用于丢包率的随机数种子
-	srand(time(NULL));
+int main(int argc, char *argv[])
+{
+    //用于丢包率的随机数种子
+    srand(time(NULL));
 
-	//启动重叠网络层并获取重叠网络层TCP套接字描述符
+    //启动重叠网络层并获取重叠网络层TCP套接字描述符
     son_port = argc > 1 ? atoi(argv[1]) : SON_PORT;
-	int son_conn = son_start();
-	if(son_conn<0) {
-		printf("can not start overlay network\n");
-	}
+    int son_conn = son_start();
+    if (son_conn < 0) {
+        printf("can not start overlay network\n");
+    }
 
-	//初始化STCP服务器
-	stcp_server_init(son_conn);
+    //初始化STCP服务器
+    stcp_server_init(son_conn);
 
-	//在端口SERVERPORT1上创建STCP服务器套接字 
-	int sockfd= stcp_server_sock(SERVERPORT1);
-	if(sockfd<0) {
-		printf("can't create stcp server\n");
-		exit(1);
-	}
-	//监听并接受来自STCP客户端的连接 
-	stcp_server_accept(sockfd);
+    //在端口SERVERPORT1上创建STCP服务器套接字
+    int sockfd = stcp_server_sock(SERVERPORT1);
+    if (sockfd < 0) {
+        printf("can't create stcp server\n");
+        exit(1);
+    }
+    //监听并接受来自STCP客户端的连接
+    stcp_server_accept(sockfd);
 
-	//在端口SERVERPORT2上创建另一个STCP服务器套接字
-	int sockfd2= stcp_server_sock(SERVERPORT2);
-	if(sockfd2<0) {
-		printf("can't create stcp server\n");
-		exit(1);
-	}
-	//监听并接受来自STCP客户端的连接 
-	stcp_server_accept(sockfd2);
+    //在端口SERVERPORT2上创建另一个STCP服务器套接字
+    int sockfd2 = stcp_server_sock(SERVERPORT2);
+    if (sockfd2 < 0) {
+        printf("can't create stcp server\n");
+        exit(1);
+    }
+    //监听并接受来自STCP客户端的连接
+    stcp_server_accept(sockfd2);
 
-	char buf1[6];
-	char buf2[7];
-	int i;
-	//接收来自第一个连接的字符串
-	for(i=0;i<5;i++) {
-		stcp_server_recv(sockfd,buf1,6);
-		printf("recv string: %s from connection 1\n",buf1);
-	}
-	//接收来自第二个连接的字符串
-	for(i=0;i<5;i++) {
-		stcp_server_recv(sockfd2,buf2,7);
-		printf("recv string: %s from connection 2\n",buf2);
-	}
+    char buf1[6];
+    char buf2[7];
+    int i;
+    //接收来自第一个连接的字符串
+    for (i = 0; i < 5; i++) {
+        stcp_server_recv(sockfd, buf1, 6);
+        printf("recv string: %s from connection 1\n", buf1);
+    }
+    //接收来自第二个连接的字符串
+    for (i = 0; i < 5; i++) {
+        stcp_server_recv(sockfd2, buf2, 7);
+        printf("recv string: %s from connection 2\n", buf2);
+    }
 
-	sleep(WAITTIME);
+    sleep(WAITTIME);
 
-	//关闭STCP服务器 
-	if(stcp_server_close(sockfd)<0) {
-		printf("can't destroy stcp server\n");
-		exit(1);
-	}				
-	if(stcp_server_close(sockfd2)<0) {
-		printf("can't destroy stcp server\n");
-		exit(1);
-	}				
+    //关闭STCP服务器
+    if (stcp_server_close(sockfd) < 0) {
+        printf("can't destroy stcp server\n");
+        exit(1);
+    }
+    if (stcp_server_close(sockfd2) < 0) {
+        printf("can't destroy stcp server\n");
+        exit(1);
+    }
 
-	//停止重叠网络层
-	son_stop(son_conn);
-	extern pthread_t handler_tid;
-	pthread_join(handler_tid, NULL);
+    //停止重叠网络层
+    son_stop(son_conn);
+    extern pthread_t handler_tid;
+    pthread_join(handler_tid, NULL);
 }
