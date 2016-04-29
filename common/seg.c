@@ -120,12 +120,13 @@ int sip_recvseg(int connection, seg_t *segptr)
     Recv(connection, &boundary_markup, sizeof(boundary_markup));
     if (boundary_markup != '&') {
         log("Unexpected boundary markup %c", boundary_markup);
-        return 1;  // 段损坏
+        return 2;  // 段损坏
     }
 
     // 读取段
     Recv(connection, &segptr->header, sizeof(segptr->header));
     Recv(connection, segptr->data, sizeof(*segptr->data) * segptr->header.length);
+
 	if(checkchecksum(segptr) == -1) {
         log("checksum failed");
         //return 1;
@@ -136,21 +137,31 @@ int sip_recvseg(int connection, seg_t *segptr)
     Recv(connection, &indicator, sizeof(indicator));
     if (indicator != '!') {
         log("end markup 1 failed");
-        return 1; //段损坏
+        return 2; //段损坏
     }
 
     Recv(connection, &boundary_markup, sizeof(boundary_markup));
     if (boundary_markup != '#') {
         log("end markup 2 failed");
-        return 1;
+        return 2;
     }
 
-    return seglost(segptr);
+	//丢包
+    if(seglost(segptr) == 1)
+		return 1;
+	else {
+		//段损坏(校验和错误)
+		if(checkchecksum(segptr) == -1)
+			return 2;
+		else
+			return 0;
+	}
+
 }
 
 int seglost(seg_t *seg)
 {
-    return 0;  // TODO Make development easier!
+    //return 0;  // TODO Make development easier!
     if ((rand() % 100) < PKT_LOSS_RATE * 100) {
         if ((rand() % 2) == 0) {
             // 50% to discard the segment
@@ -209,7 +220,7 @@ unsigned short checksum(seg_t *seg)
 			len++;
 		}
 
-		for(i = 12; i < 12 + len; i++)
+		for(i = 12; i < 12 + len/2; i++)
 			sum += p[i];
 	}
 
@@ -246,7 +257,7 @@ int checkchecksum(seg_t *seg)
 			len++;
 		}
 
-		for(i = 12; i < 12 + len; i++)
+		for(i = 12; i < 12 + len/2; i++)
 			sum += p[i];
 	}
 
