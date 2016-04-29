@@ -16,6 +16,8 @@
 #define MAGENTA CSI"1;35m"
 #define NORMAL  CSI"0m"
 
+#define STR(x) #x
+
 /**
  * @brief 报告系统错误，并退出程序
  * @param msg 传递给 perror 的消息字符串
@@ -34,5 +36,12 @@
 
 #define log(fmt, ...) \
     fprintf(stderr, GREEN "[%s:%d] " NORMAL fmt "\n", __FUNCTION__, __LINE__, ## __VA_ARGS__)
+
+#define Assert(expr, fmt, ...)                                         \
+    do {                                                               \
+        if (!(expr)) {                                                 \
+            panic("\"" STR(expr) "\"" "failed: " fmt, ## __VA_ARGS__); \
+        }                                                              \
+    } while (0)
 
 #endif // COMMON_H

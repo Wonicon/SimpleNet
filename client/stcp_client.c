@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 #include <pthread.h>
 #include "stcp_client.h"
 #include "common.h"
@@ -311,8 +310,8 @@ int stcp_client_send(int sockfd, void *data, unsigned int length)
     tcb->unAck_segNum++;
     if (tcb->sendBufTail == NULL) {
         LOG(tcb, "This is the first send bufferd");
-        assert(tcb->sendBufHead == NULL);  // This causes tail to be NULL.
-        assert(tcb->sendBufunSent == NULL);  // This one runs into NULL at first.
+        Assert(tcb->sendBufHead == NULL, "header should be NULL as tail is so.");  // This causes tail to be NULL.
+        Assert(tcb->sendBufunSent == NULL, "unsent should be NULL as tail is so");  // This one runs into NULL at first.
         tcb->sendBufTail = sendbuf;
         tcb->sendBufHead = tcb->sendBufTail;
         tcb->sendBufunSent = tcb->sendBufHead;
@@ -323,7 +322,7 @@ int stcp_client_send(int sockfd, void *data, unsigned int length)
         tcb->sendBufTail = sendbuf;
         if (tcb->sendBufunSent == NULL) {
             LOG(tcb, "Send buffers are all sent but not acked yet");
-            assert(tcb->sendBufHead);
+            Assert(tcb->sendBufHead, "header should not be NULL as tail is so");
             tcb->sendBufunSent = sendbuf;
         }
     }
@@ -438,7 +437,7 @@ int stcp_client_close(int sockfd)
 static void handle_dataack(client_tcb_t *tcb, seg_t *seg)
 {
     // TODO Check seq
-    assert(seg->header.type == DATAACK);
+    Assert(seg->header.type == DATAACK, "Unexpected data type for this handler.");
     pthread_mutex_lock(tcb->bufMutex);
     while (tcb->sendBufHead != tcb->sendBufunSent) {
         if (tcb->sendBufHead->seg.header.seq_num < seg->header.seq_num) {
@@ -451,6 +450,8 @@ static void handle_dataack(client_tcb_t *tcb, seg_t *seg)
             break;
         }
     }
+    Assert(tcb->sendBufHead == NULL && tcb->sendBufunSent != NULL,
+           "All segments have been acked but some remain unsent !?");
     if (tcb->unAck_segNum < GBN_WINDOW) {
         pthread_cond_signal(tcb->bufCond);
     }
@@ -483,8 +484,7 @@ static void client_fsm(client_tcb_t *tcb, seg_t *seg)
         case SYNACK:
             break;
         default:
-            LOG(tcb, "receives unexpected segment");
-            assert(0);
+            panic(MAGENTA "tcb@%p" NORMAL " receives unexpected segment", tcb);
         }
         break;
     case FINWAIT:
@@ -501,8 +501,7 @@ static void client_fsm(client_tcb_t *tcb, seg_t *seg)
             LOG(tcb, "returns %s", client_state_s[CLOSED]);
             break;
         default:
-            LOG(tcb, "receives unexpect %s segment under %s",
-                seg_type_s(seg), client_state_s[FINWAIT]);
+            LOG(tcb, "receives unexpect %s segment under %s", seg_type_s(seg), client_state_s[FINWAIT]);
         }
         break;
     default:
@@ -537,8 +536,7 @@ void *seghandler(void* arg)
             continue;
         }
 
-        log(">>> Receive %s segment from %d to %d",
-            seg_type_s(&seg), seg.header.src_port, seg.header.dest_port);
+        log(">>> Receive %s segment from %d to %d", seg_type_s(&seg), seg.header.src_port, seg.header.dest_port);
 
         for (int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
             if (tcbs[i] && tcbs[i]->client_portNum == seg.header.dest_port) {
