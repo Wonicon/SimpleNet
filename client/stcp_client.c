@@ -233,6 +233,9 @@ void *sendbuf_timer(void *arg)
     client_tcb_t *tcb = arg;
     LOG(tcb, "sendbuf_timer started");
     for (;;) {
+        struct timeval tv = ns_to_tv(SENDBUF_POLLING_INTERVAL);
+        select(0, NULL, NULL, NULL, &tv);
+
         pthread_mutex_lock(tcb->bufMutex);
         segBuf_t *curr = tcb->sendBufHead;
         for (; curr != tcb->sendBufunSent; curr = curr->next) {
@@ -247,6 +250,7 @@ void *sendbuf_timer(void *arg)
             LOG(tcb, "all segments have been sent");
         }
         if (tcb->sendBufHead == NULL) {
+            LOG(tcb, "send buffer timer exits");
             tcb->sendBufTail = NULL;
             pthread_mutex_unlock(tcb->bufMutex);
             return arg;
@@ -387,12 +391,18 @@ int stcp_client_close(int sockfd)
     LOG(tcb, "is to be closed");
     tcbs[sockfd] = NULL;
 
-    free(tcb->bufMutex);
+    pthread_mutex_lock(tcb->bufMutex);
     while (tcb->sendBufHead) {
         segBuf_t *tmp = tcb->sendBufHead;
         tcb->sendBufHead = tcb->sendBufHead->next;
         free(tmp);
     }
+    tcb->sendBufHead = NULL;
+    tcb->sendBufTail = NULL;
+    tcb->sendBufunSent = NULL;
+    pthread_mutex_unlock(tcb->bufMutex);
+
+    free(tcb->bufMutex);
     // We do not need to free sendBufTail and sendBufUnsent,
     // as they should aside on the linked list started from starting from sendBufHead.
     free(tcb);

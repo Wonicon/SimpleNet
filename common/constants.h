@@ -28,4 +28,29 @@
 #define CLOSEWAIT_TIMEOUT 10
 //stcp_server_accept()函数使用这个时间间隔来忙等待TCB状态转换, 单位为纳秒
 #define ACCEPT_POLLING_INTERVAL 100000000
+//sendBuf_timer线程的轮询间隔, 单位为纳秒
+#define SENDBUF_POLLING_INTERVAL 100000000
+//STCP客户端在stcp_server_recv()函数中使用这个时间间隔来轮询接收缓冲区, 以检查是否请求的数据已全部到达, 单位为秒.
+#define RECVBUF_POLLING_INTERVAL 1
+//接收缓冲区大小
+#define RECEIVE_BUF_SIZE 1000000
+//数据段超时值, 单位为纳秒
+#define DATA_TIMEOUT 100000000
+//GBN窗口大小
+#define GBN_WINDOW 10
+
+#include <sys/types.h>
+/**
+ * @brief Convert nanoseconds to timeval.
+ */
+static inline struct timeval ns_to_tv(int ns)
+{
+#define SEC_IN_NS  1000000000
+#define USEC_IN_NS 1000
+    struct timeval tv;
+    tv.tv_sec = ns / SEC_IN_NS;
+    tv.tv_usec = (ns % SEC_IN_NS) / USEC_IN_NS;
+    return tv;
+}
+
 #endif
