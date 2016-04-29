@@ -1,5 +1,6 @@
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <pthread.h>
 #include "stcp_server.h"
 #include "common.h"
@@ -113,6 +114,8 @@ int stcp_server_sock(unsigned int server_port)
             tcb->condition = malloc(sizeof(*tcb->condition));
             pthread_cond_init(tcb->condition, NULL);
 
+            tcb->recvBuf = calloc(RECEIVE_BUF_SIZE, sizeof(*tcb->recvBuf));
+
             log("Assign socket %d to port %d", i, server_port);
             tcbs[i] = tcb;
 
@@ -167,12 +170,29 @@ int stcp_server_accept(int sockfd)
     }
 }
 
-// 接收来自STCP客户端的数据
-//
-// 这个函数接收来自STCP客户端的数据. 你不需要在本实验中实现它.
-//
-int stcp_server_recv(int sockfd, void* buf, unsigned int length)
+/**
+ * @brief 接收来自STCP客户端的数据
+ *
+ * 信号/控制信息(如SYN, SYNACK等)则是双向传递. 这个函数每隔RECVBUF_ROLLING_INTERVAL时间
+ * 就查询接收缓冲区, 直到等待的数据到达, 它然后存储数据并返回1. 如果这个函数失败, 则返回-1.
+ */
+int stcp_server_recv(int sockfd, void *buf, unsigned int length)
 {
+    server_tcb_t *tcb = tcbs[sockfd];
+    if (tcb == NULL) {
+        log(RED "Invalid socket %d" NORMAL, sockfd);
+        return -1;
+    }
+
+    pthread_mutex_lock(tcb->mutex);
+    while (tcb->usedBufLen < length) {
+        // Wait for enough data.
+        pthread_cond_wait(tcb->condition, tcb->mutex);
+    }
+    memcpy(buf, tcb->recvBuf, length);
+    memmove(tcb->recvBuf, tcb->recvBuf + length, tcb->usedBufLen - length);
+    tcb->usedBufLen -= length;
+    pthread_mutex_unlock(tcb->mutex);
     return 1;
 }
 
@@ -316,6 +336,16 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
             break;
         case DATA:
             if (tcb->expect_seqNum == seg->header.seq_num) {
+                pthread_mutex_lock(tcb->mutex);
+                if (tcb->usedBufLen + seg->header.length > RECEIVE_BUF_SIZE) {
+                    LOG(tcb, "seq %d exceeds the recv buffer size, discarded", seg->header.seq_num);
+                    pthread_mutex_unlock(tcb->mutex);
+                    break;
+                }
+                memcpy(tcb->recvBuf + tcb->usedBufLen, seg->data, seg->header.length);
+                tcb->usedBufLen += seg->header.length;
+                pthread_cond_signal(tcb->condition);
+                pthread_mutex_unlock(tcb->mutex);
                 tcb->expect_seqNum += seg->header.length;
                 send_dataack(tcb->expect_seqNum, seg->header.dest_port, seg->header.src_port);
                 seg->header.type = DATAACK;
