@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+if [ -z $1 ]; then
+    echo "Please input your stu-id"
+else
+    echo "Publishing the prog to all $1's remote hosts"
+    echo 1
+    rsync -a ./sip/sip ./son/son ./topology/topology.dat b$1@csnetlab_1.nju.edu.cn:~
+    echo 2
+    rsync -a ./sip/sip ./son/son ./topology/topology.dat b$1@csnetlab_2.nju.edu.cn:~
+    echo 3
+    rsync -a ./sip/sip ./son/son ./topology/topology.dat b$1@csnetlab_3.nju.edu.cn:~
+    echo 4
+    rsync -a ./sip/sip ./son/son ./topology/topology.dat b$1@csnetlab_4.nju.edu.cn:~
+    echo done
+fi

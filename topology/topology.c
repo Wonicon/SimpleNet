@@ -5,6 +5,9 @@
 //创建日期: 2015年
 
 #include "topology.h"
+#include <string.h>
+#include <ifaddrs.h>
+#include <arpa/inet.h>
 
 //这个函数返回指定主机的节点ID.
 //节点ID是节点IP地址最后8位表示的整数.
@@ -26,7 +29,23 @@ int topology_getNodeIDfromip(struct in_addr* addr)
 //如果不能获取本机的节点ID, 返回-1.
 int topology_getMyNodeID()
 {
-    return 0;
+    // Acknowledgement:
+    // http://stackoverflow.com/questions/20800319/how-do-i-get-my-ip-address-in-c-on-linux
+    const char *localhost = "127.0.0.1";
+    struct ifaddrs *list_head, *curr;
+    getifaddrs(&list_head);
+    curr = list_head;
+    while (curr) {
+        if (curr->ifa_addr && curr->ifa_addr->sa_family == AF_INET) { // This check makes sense!
+            struct sockaddr_in *in_addr = (void *)curr->ifa_addr;
+            if (strcmp(localhost, inet_ntoa(in_addr->sin_addr))) {  // Not localhost
+                return htonl(in_addr->sin_addr.s_addr) & 0xFF;
+            }
+        }
+        curr = curr->ifa_next;
+    }
+    freeifaddrs(list_head);
+    return -1;
 }
 
 //这个函数解析保存在文件topology.dat中的拓扑信息.
