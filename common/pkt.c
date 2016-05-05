@@ -57,9 +57,26 @@ int getpktToSend(sip_pkt_t* pkt, int* nextNode, int sip_conn)
 // 参数sip_conn是SIP进程和SON进程之间的TCP连接的套接字描述符.
 // 报文通过SIP进程和SON进程之间的TCP连接发送, 使用分隔符!&和!#, 按照'!& 报文 !#'的顺序发送.
 // 如果报文发送成功, 返回1, 否则返回-1.
-int forwardpktToSIP(sip_pkt_t* pkt, int sip_conn)
+int forwardpktToSIP(sip_pkt_t *pkt, int sip_conn)
 {
-    return 0;
+    ssize_t ret;
+
+    ret = write(sip_conn, "!&", 2);
+    if (ret == 0 || ret == -1) {
+        return -1;
+    }
+
+    ret = write(sip_conn, pkt, sizeof(*pkt));
+    if (ret == 0 || ret == -1) {
+        return -1;
+    }
+
+    ret = write(sip_conn, "!#", 2);
+    if (ret == 0 || ret == -1) {
+        return -1;
+    }
+
+    return 1;
 }
 
 // sendpkt()函数由SON进程调用, 其作用是将接收自SIP进程的报文发送给下一跳.
