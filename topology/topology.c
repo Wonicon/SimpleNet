@@ -36,9 +36,8 @@ int topology_getNodeIDfromip(struct in_addr *addr)
     return htonl(addr->s_addr) & 0xFF;
 }
 
-//这个函数返回本机的节点ID
-//如果不能获取本机的节点ID, 返回-1.
-int topology_getMyNodeID()
+//返回本机第一个非回环地址的IP地址，本机字节序
+in_addr_t topology_getIP()
 {
     // Acknowledgement:
     // http://stackoverflow.com/questions/20800319/how-do-i-get-my-ip-address-in-c-on-linux
@@ -50,13 +49,21 @@ int topology_getMyNodeID()
         if (curr->ifa_addr && curr->ifa_addr->sa_family == AF_INET) { // This check makes sense!
             struct sockaddr_in *in_addr = (void *)curr->ifa_addr;
             if (strcmp(localhost, inet_ntoa(in_addr->sin_addr))) {  // Not localhost
-                return htonl(in_addr->sin_addr.s_addr) & 0xFF;
+                return htonl(in_addr->sin_addr.s_addr);
             }
         }
         curr = curr->ifa_next;
     }
     freeifaddrs(list_head);
-    return -1;
+    return 0;
+}
+
+//这个函数返回本机的节点ID
+//如果不能获取本机的节点ID, 返回-1.
+int topology_getMyNodeID()
+{
+    int ip = topology_getIP();
+    return ip ? (ip & 0xFF) : -1;
 }
 
 //这个函数解析保存在文件topology.dat中的拓扑信息.
