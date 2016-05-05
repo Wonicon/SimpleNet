@@ -15,14 +15,18 @@
 //如果不能获取节点ID, 返回-1.
 int topology_getNodeIDfromname(char* hostname)
 {
-    return 0;
+    // https://paulschreiber.com/blog/2005/10/28/simple-gethostbyname-example/
+    // 获知h_addr_list[i]对应的具体类型
+    struct hostent *host = gethostbyname(hostname);
+    struct in_addr *in_addr = (void *)host->h_addr_list[0];
+    return htonl(in_addr->s_addr) & 0xFF;
 }
 
 //这个函数返回指定的IP地址的节点ID.
 //如果不能获取节点ID, 返回-1.
-int topology_getNodeIDfromip(struct in_addr* addr)
+int topology_getNodeIDfromip(struct in_addr *addr)
 {
-    return 0;
+    return htonl(addr->s_addr) & 0xFF;
 }
 
 //这个函数返回本机的节点ID
