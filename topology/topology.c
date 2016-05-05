@@ -49,8 +49,9 @@ in_addr_t topology_getIP()
         if (curr->ifa_addr && curr->ifa_addr->sa_family == AF_INET) { // This check makes sense!
             struct sockaddr_in *in_addr = (void *)curr->ifa_addr;
             if (strcmp(localhost, inet_ntoa(in_addr->sin_addr))) {  // Not localhost
+                in_addr_t ip = htonl(in_addr->sin_addr.s_addr);
                 freeifaddrs(list_head);
-                return htonl(in_addr->sin_addr.s_addr);
+                return ip;
             }
         }
         curr = curr->ifa_next;
