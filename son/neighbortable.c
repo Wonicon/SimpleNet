@@ -14,20 +14,22 @@
 //返回创建的邻居表.
 nbr_entry_t *nt_create()
 {
-    int n = topology_getNbrNum();
-    int *neighbors = topology_getNbrArray();
+    int this_id = topology_getMyNodeID();
+    in_addr_t this_ip = topology_getIP();
+    int nr_nbrs = topology_getNbrNum();
+    int *nbrs = topology_getNbrArray();
 
-    printf("Read %d entries from topology.dat\n", n);
+    printf("%d has %d neighbors\n", this_id, nr_nbrs);
 
-    nbr_entry_t *table = calloc((size_t)n, sizeof(*table));
-    for (int i = 0; i < n; i++) {
-        // TODO Get hostname or IP address!
-        printf("Init neighbor ID %d\n", neighbors[i]);
+    nbr_entry_t *table = calloc((size_t)nbrs, sizeof(*table));
+    for (int i = 0; i < nr_nbrs; i++) {
+        printf("create nbr table entry for %d\n", nbrs[i]);
         table[i].conn = -1;
-        table[i].nodeID = neighbors[i];
-        table[i].nodeIP = inet_addr("127.0.0.1");
+        table[i].nodeID = nbrs[i];
+        table[i].nodeIP = (this_ip & (~0xFF)) | nbrs[i];
     }
 
+    free(nbrs);
     return table;
 }
 
@@ -41,10 +43,4 @@ void nt_destroy(nbr_entry_t *table)
     }
     free(table);
     return;
-}
-
-//这个函数为邻居表中指定的邻居节点条目分配一个TCP连接. 如果分配成功, 返回1, 否则返回-1.
-int nt_addconn(nbr_entry_t* nt, int nodeID, int conn)
-{
-    return 0;
 }

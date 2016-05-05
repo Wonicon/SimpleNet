@@ -24,7 +24,7 @@ int topology_getNodeIDfromname(char* hostname)
     // 获知h_addr_list[i]对应的具体类型
     char buf[128];
     sprintf(buf, "%s.nju.edu.cn", hostname);
-    struct hostent *host = gethostbyname(buf);
+    struct hostent *host = gethostbyname(buf);  // 竟然是指向静态结构的指针，可怕
     struct in_addr *in_addr = (void *)host->h_addr_list[0];
     return htonl(in_addr->s_addr) & 0xFF;
 }
@@ -49,6 +49,7 @@ in_addr_t topology_getIP()
         if (curr->ifa_addr && curr->ifa_addr->sa_family == AF_INET) { // This check makes sense!
             struct sockaddr_in *in_addr = (void *)curr->ifa_addr;
             if (strcmp(localhost, inet_ntoa(in_addr->sin_addr))) {  // Not localhost
+                freeifaddrs(list_head);
                 return htonl(in_addr->sin_addr.s_addr);
             }
         }
