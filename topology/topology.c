@@ -5,9 +5,14 @@
 //创建日期: 2015年
 
 #include "topology.h"
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include <ifaddrs.h>
 #include <arpa/inet.h>
+
+#define TOPOLOGY_FILE "topology.dat"
 
 //这个函数返回指定主机的节点ID.
 //节点ID是节点IP地址最后8位表示的整数.
@@ -17,7 +22,9 @@ int topology_getNodeIDfromname(char* hostname)
 {
     // https://paulschreiber.com/blog/2005/10/28/simple-gethostbyname-example/
     // 获知h_addr_list[i]对应的具体类型
-    struct hostent *host = gethostbyname(hostname);
+    char buf[128];
+    sprintf(buf, "%s.nju.edu.cn", hostname);
+    struct hostent *host = gethostbyname(buf);
     struct in_addr *in_addr = (void *)host->h_addr_list[0];
     return htonl(in_addr->s_addr) & 0xFF;
 }
@@ -56,7 +63,23 @@ int topology_getMyNodeID()
 //返回邻居数.
 int topology_getNbrNum()
 {
-    return 0;
+    int this_id = topology_getMyNodeID();
+    char buf[128], host_1[32], host_2[32];
+    int cost;
+    FILE *fp = fopen(TOPOLOGY_FILE, "r");
+    int nbr = 0;
+    while (fgets(buf, sizeof(buf), fp)) {
+        sscanf(buf, "%s%s%n", host_1, host_2, &cost);
+        int id_1 = topology_getNodeIDfromname(host_1);
+        int id_2 = topology_getNodeIDfromname(host_2);
+        if (id_1 == this_id) {
+            nbr++;
+        }
+        else if (id_2 == this_id) {
+            nbr++;
+        }
+    }
+    return nbr;
 }
 
 //这个函数解析保存在文件topology.dat中的拓扑信息.
@@ -75,9 +98,51 @@ int* topology_getNodeArray()
 
 //这个函数解析保存在文件topology.dat中的拓扑信息.
 //返回一个动态分配的数组, 它包含所有邻居的节点ID.
-int* topology_getNbrArray()
+//以 0 结尾.
+int *topology_getNbrArray()
 {
-    return 0;
+    int nr_nbr = topology_getNbrNum();
+    int *nbrs = calloc((size_t)(nr_nbr + 1), sizeof(*nbrs));
+    int *end = nbrs;
+    FILE *fp = fopen(TOPOLOGY_FILE, "r");
+    char buf[128], host_1[32], host_2[32];
+    int cost;
+    int this_id = topology_getMyNodeID();
+
+    while (fgets(buf, sizeof(buf), fp)) {
+        sscanf(buf, "%s%s%n", host_1, host_2, &cost);
+        int id_1 = topology_getNodeIDfromname(host_1);
+        int id_2 = topology_getNodeIDfromname(host_2);
+
+        // 判断是否是涉及这个结点的关系
+        // 如果是则将对方记录下来
+        int id_to_insert = -1;
+        if (id_1 == this_id) {
+            id_to_insert = id_2;
+        }
+        else if (id_2 == this_id) {
+            id_to_insert = id_1;
+        }
+
+        // 插入新结点 ID
+        if (id_to_insert != -1) {
+            int *curr = nbrs;
+            for (; curr != end; curr++) {
+                if (*curr == id_to_insert) {
+                    break;
+                }
+            }
+            // 待插入结点是新的
+            if (curr == end) {
+                *end++ = id_to_insert;
+            }
+        }
+    }
+
+    assert((end - nbrs) == nr_nbr);
+    *end = 0;
+
+    return nbrs;
 }
 
 //这个函数解析保存在文件topology.dat中的拓扑信息.
