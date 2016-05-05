@@ -5,12 +5,12 @@ if [ -z $1 ]; then
 else
     echo "Publishing the prog to all $1's remote hosts"
     echo 1
-    rsync -a ./sip ./son ./topology b$1@csnetlab_1.nju.edu.cn:~
+    rsync -a ./sip ./son ./topology ./common b$1@csnetlab_1.nju.edu.cn:~
     echo 2
-    rsync -a ./sip ./son ./topology b$1@csnetlab_2.nju.edu.cn:~
+    rsync -a ./sip ./son ./topology ./common b$1@csnetlab_2.nju.edu.cn:~
     echo 3
-    rsync -a ./sip ./son ./topology b$1@csnetlab_3.nju.edu.cn:~
+    rsync -a ./sip ./son ./topology ./common b$1@csnetlab_3.nju.edu.cn:~
     echo 4
-    rsync -a ./sip ./son ./topology b$1@csnetlab_4.nju.edu.cn:~
+    rsync -a ./sip ./son ./topology ./common b$1@csnetlab_4.nju.edu.cn:~
     echo done
 fi
