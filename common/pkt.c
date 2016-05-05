@@ -87,7 +87,8 @@ int recvpkt(sip_pkt_t *pkt, int conn)
     char *buf = (void *)pkt;
     enum pkt_state pkt_state = PKTSTART1;
     while (pkt_state != PKTSTOP2) {
-        if (read(conn, &ch, sizeof(ch)) == -1) {
+        int ret = read(conn, &ch, sizeof(ch));
+        if (ret != sizeof(ch)) {
             perror("recvpkt");
             return -2;
         }

@@ -27,7 +27,7 @@
 #include "neighbortable.h"
 
 //你应该在这个时间段内启动所有重叠网络节点上的SON进程
-#define SON_START_DELAY 10
+#define SON_START_DELAY 1
 
 /**************************************************************/
 //声明全局变量
@@ -204,9 +204,6 @@ int main()
     //将sip_conn初始化为-1, 即还未与SIP进程连接
     sip_conn = -1;
 
-    //注册一个信号句柄, 用于终止进程
-    signal(SIGINT, son_stop);
-
     //打印所有邻居
     int nbrNum = topology_getNbrNum();
     int i;
@@ -219,7 +216,7 @@ int main()
     pthread_create(&waitNbrs_thread, NULL, waitNbrs, nt);
 
     //等待其他节点启动
-    sleep(SON_START_DELAY);
+    //sleep(SON_START_DELAY);
 
     //连接到节点ID比自己小的所有邻居
     connectNbrs();
@@ -238,6 +235,10 @@ int main()
     }
     printf("Overlay network: node initialized...\n");
     printf("Overlay network: waiting for connection from SIP process...\n");
+
+    //注册一个信号句柄, 用于终止进程
+    //这时SIGINT的行为才有意义
+    signal(SIGINT, son_stop);
 
     //等待来自SIP进程的连接
     waitSIP();
