@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/un.h>  // UNIX DOMAIN 接口
 #include <netinet/in.h>
 #include <string.h>
 #include <pthread.h>
@@ -177,7 +178,27 @@ void *listen_to_neighbor(void *arg)
 //如果下一跳的节点ID为BROADCAST_NODEID, 报文应发送到所有邻居节点.
 void waitSIP()
 {
-    //你需要编写这里的代码.
+    int unix_socket = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (unix_socket == -1) {
+        perror(NULL);
+    }
+
+    struct sockaddr_un sockaddr_un;
+    memset(&sockaddr_un, 0, sizeof(sockaddr_un));
+    sockaddr_un.sun_family = AF_UNIX;
+    strncpy(sockaddr_un.sun_path, UNIX_PATH, sizeof(sockaddr_un.sun_path) - 1);
+    unlink(UNIX_PATH);
+    if (bind(unix_socket, (struct sockaddr *)&sockaddr_un, sizeof(sockaddr_un)) == -1) {
+        perror(NULL);
+    }
+    if (listen(unix_socket, 5) == -1) {
+        perror(NULL);
+    }
+    if ((sip_conn = accept(unix_socket, NULL, NULL)) == -1) {
+        perror(NULL);
+    }
+
+    puts("unix domain established");
 }
 
 //这个函数停止重叠网络, 当接收到信号SIGINT时, 该函数被调用.

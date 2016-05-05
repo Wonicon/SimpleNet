@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <netinet/in.h>
 #include <string.h>
 #include <arpa/inet.h>
@@ -36,8 +37,25 @@ int son_conn;  //到重叠网络的连接
 //成功时返回连接描述符, 否则返回-1
 int connectToSON()
 {
-    //你需要编写这里的代码.
-    return 0;
+    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd == -1) {
+        perror(NULL);
+        return -1;
+    }
+
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, UNIX_PATH, sizeof(addr.sun_path) - 1);
+
+    if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+        perror("connect error");
+        return -1;
+    }
+
+    puts("unix domain established");
+
+    return fd;
 }
 
 //这个线程每隔ROUTEUPDATE_INTERVAL时间就发送一条路由更新报文

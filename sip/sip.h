@@ -21,7 +21,4 @@ void* routeupdate_daemon(void* arg);
 //在本实验中, 这个线程在接收到报文后, 只是显示报文已接收到的信息, 并不处理报文
 void* pkthandler(void* arg);
 
-//这个函数终止SIP进程, 当SIP进程收到信号SIGINT时会调用这个函数
-//它关闭所有连接, 释放所有动态分配的内存
-void sip_stop();
 #endif
