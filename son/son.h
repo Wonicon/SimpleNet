@@ -27,8 +27,4 @@ void waitSIP();
 //所有的listen_to_neighbor线程都是在到邻居的TCP连接全部建立之后启动的.
 void* listen_to_neighbor(void* arg);
 
-//这个函数停止重叠网络, 当接收到信号SIGINT时, 该函数被调用.
-//它关闭所有的连接, 释放所有动态分配的内存.
-void son_stop();
-
 #endif

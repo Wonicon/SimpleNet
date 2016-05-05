@@ -27,14 +27,15 @@
 #include "neighbortable.h"
 
 //你应该在这个时间段内启动所有重叠网络节点上的SON进程
-#define SON_START_DELAY 60
+#define SON_START_DELAY 10
 
 /**************************************************************/
 //声明全局变量
 /**************************************************************/
 
 //将邻居表声明为一个全局变量
-nbr_entry_t* nt;
+nbr_entry_t *nt;
+
 //将与SIP进程之间的TCP连接声明为一个全局变量
 int sip_conn;
 
@@ -44,9 +45,67 @@ int sip_conn;
 
 // 这个线程打开TCP端口CONNECTION_PORT, 等待节点ID比自己大的所有邻居的进入连接,
 // 在所有进入连接都建立后, 这个线程终止.
-void* waitNbrs(void* arg)
+void *waitNbrs(void *arg)
 {
-    //你需要编写这里的代码.
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) {
+        perror("Cannot open socket");
+        pthread_exit(NULL);
+    }
+
+    struct sockaddr_in sockaddr_in;
+    sockaddr_in.sin_family      = AF_INET;
+    sockaddr_in.sin_addr.s_addr = INADDR_ANY;
+    sockaddr_in.sin_port        = htons(CONNECTION_PORT);
+
+    // 使得退出后可以立即使用旧端口，方便调试
+    int enable = 1;
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) == -1) {
+        perror("setsockopt SO_REUSEADDR");
+        pthread_exit(NULL);
+    }
+
+    if (bind(fd, (struct sockaddr *)&sockaddr_in, sizeof(sockaddr_in))) {
+        perror("Cannot bind");
+        pthread_exit(NULL);
+    }
+
+    listen(fd, 5);
+
+    nbr_entry_t *nbrs = arg;
+    int nr_nbrs = topology_getNbrNum();
+    int this_id = topology_getMyNodeID();
+
+    int nr_conn = 0;
+    for (int i = 0; i < nr_nbrs; i++) {
+        if (nbrs[i].nodeID > this_id) {
+            nr_conn++;
+        }
+    }
+
+    // On `man 2 accept':
+    //   The addrlen argument is a value-result argument:
+    //   the caller must initialize it to contain the size (in bytes) of the structure pointed to by addr;
+    //   on return it will contain the actual size of the peer address.
+    // 启发: http://stackoverflow.com/questions/32054055/why-does-it-show-received-a-connection-from-0-0-0-0-port-0
+    socklen_t len = sizeof(sockaddr_in);
+    while (nr_conn--) {
+        int conn = accept(fd, (struct sockaddr *)&sockaddr_in, &len);
+        if (conn == -1) {
+            perror("Cannot connect to the neighbor");
+        }
+        else {
+            int id = topology_getNodeIDfromip(&sockaddr_in.sin_addr);
+            for (int i = 0; i < nr_nbrs; i++) {
+                if (nbrs[i].nodeID == id) {
+                    printf("%d is connected to %d\n", this_id, id);
+                    nbrs[i].conn = conn;
+                    break;
+                }
+            }
+        }
+    }
+
     return 0;
 }
 
@@ -54,7 +113,37 @@ void* waitNbrs(void* arg)
 // 在所有外出连接都建立后, 返回1, 否则返回-1.
 int connectNbrs()
 {
-    //你需要编写这里的代码.
+    int nr_nbrs = topology_getNbrNum();
+    int this_id = topology_getMyNodeID();
+
+    for (int i = 0; i < nr_nbrs; i++) {
+        if (this_id > nt[i].nodeID) {
+            struct sockaddr_in sockaddr_in;
+            sockaddr_in.sin_family = AF_INET;
+            sockaddr_in.sin_addr.s_addr = ntohl(nt[i].nodeIP);
+            sockaddr_in.sin_port = ntohs(CONNECTION_PORT);
+            nt[i].conn = socket(AF_INET, SOCK_STREAM, 0);
+
+            if (nt[i].conn == -1) {
+                perror("Cannot create the client socket");
+                exit(-1);
+            }
+
+            // 使得退出后可以立即使用旧端口，方便调试
+            int enable = 1;
+            if (setsockopt(nt[i].conn, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) == -1) {
+                perror("setsockopt SO_REUSEADDR");
+            }
+
+            printf("%d is connecting to %d\n", this_id, nt[i].nodeID);
+            if (connect(nt[i].conn, (struct sockaddr *)&sockaddr_in, sizeof(sockaddr_in))) {
+                perror("Cannot connect to the neighbor");
+            }
+            else {
+                printf("%d is connected to %d\n", this_id, nt[i].nodeID);
+            }
+        }
+    }
     return 0;
 }
 
@@ -76,9 +165,10 @@ void waitSIP()
 
 //这个函数停止重叠网络, 当接收到信号SIGINT时, 该函数被调用.
 //它关闭所有的连接, 释放所有动态分配的内存.
-void son_stop()
+void son_stop(int unused)
 {
-    //你需要编写这里的代码.
+    nt_destroy(nt);
+    exit(1);
 }
 
 int main()
@@ -103,7 +193,7 @@ int main()
 
     //启动waitNbrs线程, 等待节点ID比自己大的所有邻居的进入连接
     pthread_t waitNbrs_thread;
-    pthread_create(&waitNbrs_thread, NULL, waitNbrs, (void*)0);
+    pthread_create(&waitNbrs_thread, NULL, waitNbrs, nt);
 
     //等待其他节点启动
     sleep(SON_START_DELAY);
@@ -114,6 +204,9 @@ int main()
     //等待waitNbrs线程返回
     pthread_join(waitNbrs_thread, NULL);
 
+    puts("SON has been established");
+
+    while (1);
     //此时, 所有与邻居之间的连接都建立好了
 
     //创建线程监听所有邻居
