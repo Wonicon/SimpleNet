@@ -33,14 +33,15 @@ nbr_entry_t *nt_create()
     return table;
 }
 
-//这个函数删除一个邻居表. 它关闭所有连接, 释放所有动态分配的内存.
+//这个函数删除一个邻居表. 它关闭所有连接
+//动态分配的表在外面销毁，为了让监听线程可以读取套接字
 void nt_destroy(nbr_entry_t *table)
 {
     int n = topology_getNbrNum();
     for (int i = 0; i < n; i++) {
         printf("Disconnect to neighbor ID %d\n", table[i].nodeID);
+        shutdown(table[i].conn, SHUT_RDWR);
         close(table[i].conn);
     }
-    free(table);
     return;
 }

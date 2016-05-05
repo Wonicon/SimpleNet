@@ -36,6 +36,9 @@
 //将邻居表声明为一个全局变量
 nbr_entry_t *nt;
 
+//记录所有监听线程的 tid
+pthread_t *tids;
+
 //将与SIP进程之间的TCP连接声明为一个全局变量
 int sip_conn;
 
@@ -149,10 +152,25 @@ int connectNbrs()
 
 //每个listen_to_neighbor线程持续接收来自一个邻居的报文. 它将接收到的报文转发给SIP进程.
 //所有的listen_to_neighbor线程都是在到邻居的TCP连接全部建立之后启动的.
-void* listen_to_neighbor(void* arg)
+// arg: 指向 nbr_entry_t 的指针, 引用需要处理的邻居
+void *listen_to_neighbor(void *arg)
 {
-    //你需要编写这里的代码.
-    return 0;
+    volatile nbr_entry_t *nbr = arg;
+
+    printf("Listening on %d\n", nbr->nodeID);
+
+    sip_pkt_t sip_pkt;
+    for (;;) {
+        int ret = recvpkt(&sip_pkt, nbr->conn);
+        if (ret == -2) {
+            break;
+        } else if (ret != -1) {
+            forwardpktToSIP(&sip_pkt, sip_conn);
+        }
+    }
+
+    printf("Exit listener on %d\n", nbr->nodeID);
+    return NULL;
 }
 
 //这个函数打开TCP端口SON_PORT, 等待来自本地SIP进程的进入连接.
@@ -167,7 +185,13 @@ void waitSIP()
 //它关闭所有的连接, 释放所有动态分配的内存.
 void son_stop(int unused)
 {
+    int nr_nbrs = topology_getNbrNum();
     nt_destroy(nt);
+    for (int i = 0; i < nr_nbrs; i++) {
+        pthread_join(tids[i], NULL);
+    }
+    free(nt);
+    free(tids);
     exit(1);
 }
 
@@ -206,19 +230,18 @@ int main()
 
     puts("SON has been established");
 
-    while (1);
     //此时, 所有与邻居之间的连接都建立好了
 
     //创建线程监听所有邻居
+    tids = calloc((size_t)nbrNum, sizeof(*tids));
     for (i = 0; i < nbrNum; i++) {
-        int* idx = (int*)malloc(sizeof(int));
-        *idx = i;
-        pthread_t nbr_listen_thread;
-        pthread_create(&nbr_listen_thread, NULL, listen_to_neighbor, (void*)idx);
+        pthread_create(&tids[i], NULL, listen_to_neighbor, &nt[i]);
     }
     printf("Overlay network: node initialized...\n");
     printf("Overlay network: waiting for connection from SIP process...\n");
 
     //等待来自SIP进程的连接
     waitSIP();
+
+    for (;;) {}
 }

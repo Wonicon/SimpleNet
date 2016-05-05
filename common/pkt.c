@@ -3,6 +3,16 @@
  */
 
 #include "pkt.h"
+#include <stdio.h>
+#include <unistd.h>
+
+enum pkt_state {
+    PKTSTART1,
+    PKTSTART2,
+    PKTRECV,
+    PKTSTOP1,
+    PKTSTOP2
+};
 
 // son_sendpkt()由SIP进程调用, 其作用是要求SON进程将报文发送到重叠网络中. SON进程和SIP进程通过一个本地TCP连接互连.
 // 在son_sendpkt()中, 报文及其下一跳的节点ID被封装进数据结构sendpkt_arg_t, 并通过TCP连接发送给SON进程.
@@ -70,7 +80,36 @@ int sendpkt(sip_pkt_t* pkt, int conn)
 // PKTRECV -- 接收到'&', 开始接收数据
 // PKTSTOP1 -- 接收到'!', 期待'#'以结束数据的接收
 // 如果成功接收报文, 返回1, 否则返回-1.
-int recvpkt(sip_pkt_t* pkt, int conn)
+// 断开连接返回 -2
+int recvpkt(sip_pkt_t *pkt, int conn)
 {
+    char ch;
+    char *buf = (void *)pkt;
+    enum pkt_state pkt_state = PKTSTART1;
+    while (pkt_state != PKTSTOP2) {
+        if (read(conn, &ch, sizeof(ch)) == -1) {
+            perror("recvpkt");
+            return -2;
+        }
+        switch (pkt_state) {
+        case PKTSTART1:
+            if (ch == '!') pkt_state = PKTSTART2;
+            break;
+        case PKTSTART2:
+            if (ch == '&') pkt_state = PKTRECV;
+            else return -1;
+            break;
+        case PKTRECV:
+            if (ch == '!') pkt_state = PKTSTOP1;
+            else *buf++ = ch;
+            break;
+        case PKTSTOP1:
+            if (ch == '#') pkt_state = PKTSTOP2;
+            else return -1;
+            break;
+        default:
+            return -1;
+        }
+    }
     return 0;
 }
