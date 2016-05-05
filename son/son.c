@@ -139,12 +139,11 @@ int connectNbrs()
             }
 
             printf("%d is connecting to %d\n", this_id, nt[i].nodeID);
-            if (connect(nt[i].conn, (struct sockaddr *)&sockaddr_in, sizeof(sockaddr_in))) {
+            while (connect(nt[i].conn, (struct sockaddr *)&sockaddr_in, sizeof(sockaddr_in))) {
                 perror("Cannot connect to the neighbor");
+                puts("Retry");
             }
-            else {
-                printf("%d is connected to %d\n", this_id, nt[i].nodeID);
-            }
+            printf("%d is connected to %d\n", this_id, nt[i].nodeID);
         }
     }
     return 0;
