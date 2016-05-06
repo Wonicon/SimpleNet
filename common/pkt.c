@@ -55,23 +55,11 @@ int getpktToSend(sip_pkt_t* pkt, int* nextNode, int sip_conn)
 // forwardpktToSIP()函数是在SON进程接收到来自重叠网络中其邻居的报文后被调用的.
 // SON进程调用这个函数将报文转发给SIP进程.
 // 参数sip_conn是SIP进程和SON进程之间的TCP连接的套接字描述符.
-// 报文通过SIP进程和SON进程之间的TCP连接发送, 使用分隔符!&和!#, 按照'!& 报文 !#'的顺序发送.
+// 报文通过SIP进程和SON进程之间的TCP连接发送.
 // 如果报文发送成功, 返回1, 否则返回-1.
 int forwardpktToSIP(sip_pkt_t *pkt, int sip_conn)
 {
-    ssize_t ret;
-
-    ret = write(sip_conn, "!&", 2);
-    if (ret == 0 || ret == -1) {
-        return -1;
-    }
-
-    ret = write(sip_conn, pkt, sizeof(*pkt));
-    if (ret == 0 || ret == -1) {
-        return -1;
-    }
-
-    ret = write(sip_conn, "!#", 2);
+    ssize_t ret = write(sip_conn, pkt, sizeof(*pkt));
     if (ret == 0 || ret == -1) {
         return -1;
     }

@@ -165,7 +165,9 @@ void *listen_to_neighbor(void *arg)
         if (ret == -2) {
             break;
         } else if (ret != -1) {
-            forwardpktToSIP(&sip_pkt, sip_conn);
+            if (forwardpktToSIP(&sip_pkt, sip_conn) == -1) {
+                break;
+            }
         }
     }
 
