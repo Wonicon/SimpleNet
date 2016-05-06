@@ -18,6 +18,7 @@
 #include <sys/utsname.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <sys/time.h> // 定时信号
 
 #include "../common/constants.h"
 #include "../common/pkt.h"
@@ -61,25 +62,20 @@ int connectToSON()
 //这个线程每隔ROUTEUPDATE_INTERVAL时间就发送一条路由更新报文
 //在本实验中, 这个线程只广播空的路由更新报文给所有邻居,
 //我们通过设置SIP报文首部中的dest_nodeID为BROADCAST_NODEID来发送广播
-void* routeupdate_daemon(void* arg)
+
+static void *routeupdate_daemon(void *arg)
 {
     //你需要编写这里的代码.
-    return 0;
-}
+    struct timeval tv;
+    tv.tv_sec = ROUTE_UPDATE;
+    tv.tv_usec = 0;
 
-//这个线程处理来自SON进程的进入报文
-//它通过调用son_recvpkt()接收来自SON进程的报文
-//在本实验中, 这个线程在接收到报文后, 只是显示报文已接收到的信息, 并不处理报文
-void* pkthandler(void* arg)
-{
-    sip_pkt_t pkt;
-
-    while (son_recvpkt(&pkt, son_conn) > 0) {
-        printf("Routing: received a packet from neighbor %d\n", pkt.header.src_nodeID);
+    while (1) {
+        select(0, NULL, NULL, NULL, &tv);
+        puts("hello");
     }
-    close(son_conn);
-    son_conn = -1;
-    pthread_exit(NULL);
+
+    return NULL;
 }
 
 //这个函数终止SIP进程, 当SIP进程收到信号SIGINT时会调用这个函数.
@@ -106,20 +102,21 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    //启动线程处理来自SON进程的进入报文
-    pthread_t pkt_handler_thread;
-    pthread_create(&pkt_handler_thread, NULL, pkthandler, (void*)0);
-
-    //启动路由更新线程
-    pthread_t routeupdate_thread;
-    pthread_create(&routeupdate_thread, NULL, routeupdate_daemon, (void*)0);
+    pthread_t tid;
+    pthread_create(&tid, NULL, routeupdate_daemon, NULL);
 
     printf("SIP layer is started...\n");
 
-    //永久睡眠
-    while (1) {
-        sleep(60);
+    //启动路由更新线程
+
+    puts("pkt handler starts");
+    sip_pkt_t pkt;
+    while (son_recvpkt(&pkt, son_conn) > 0) {
+        printf("Routing: received a packet from neighbor %d\n", pkt.header.src_nodeID);
     }
+    close(son_conn);
+    son_conn = -1;
+    puts("pkt handler exits");
 }
 
 

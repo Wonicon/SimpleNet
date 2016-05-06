@@ -11,14 +11,4 @@
 //成功时返回连接描述符, 否则返回-1
 int connectToSON();
 
-//这个线程每隔ROUTEUPDATE_INTERVAL时间就发送一条路由更新报文
-//在本实验中, 这个线程只广播空的路由更新报文给所有邻居,
-//我们通过设置SIP报文首部中的dest_nodeID为BROADCAST_NODEID来发送广播
-void* routeupdate_daemon(void* arg);
-
-//这个线程处理来自SON进程的进入报文
-//它通过调用son_recvpkt()接收来自SON进程的报文
-//在本实验中, 这个线程在接收到报文后, 只是显示报文已接收到的信息, 并不处理报文
-void* pkthandler(void* arg);
-
 #endif
