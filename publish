@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
 
+# Remember to check `/etc/hosts' if csnetlab_x.nju.edu.cn not found
+# The ip addresses are described in the keynote for the first week
+
+# SSH auto-login:
+# http://www.thegeekstuff.com/2008/11/3-steps-to-perform-ssh-login-without-password-using-ssh-keygen-ssh-copy-id/
+
 if [ -z $1 ]; then
     echo "Please input your stu-id"
 else
-    echo "Publishing the prog to all $1's remote hosts"
-    echo 1
-    rsync -a ./sip ./son ./topology ./common b$1@csnetlab_1.nju.edu.cn:~
-    echo 2
-    rsync -a ./sip ./son ./topology ./common b$1@csnetlab_2.nju.edu.cn:~
-    echo 3
-    rsync -a ./sip ./son ./topology ./common b$1@csnetlab_3.nju.edu.cn:~
-    echo 4
-    rsync -a ./sip ./son ./topology ./common b$1@csnetlab_4.nju.edu.cn:~
+    echo "Publishing the project to all $1's remote hosts"
+    for i in `seq 1 4`; do
+        echo $i
+        # Q: Why not just upload binaries?
+        # A: GDB needs the original source code files.
+        rsync --archive --verbose ./sip ./son ./topology ./common --exclude=.git --exclude=*.o b$1@csnetlab_$i.nju.edu.cn:~
+    done
     echo done
 fi
