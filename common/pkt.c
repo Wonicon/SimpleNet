@@ -4,6 +4,7 @@
 
 #include "pkt.h"
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
 enum pkt_state {
@@ -76,9 +77,18 @@ int forwardpktToSIP(sip_pkt_t *pkt, int sip_conn)
 // 参数conn是到下一跳节点的TCP连接的套接字描述符.
 // 报文通过SON进程和其邻居节点之间的TCP连接发送, 使用分隔符!&和!#, 按照'!& 报文 !#'的顺序发送.
 // 如果报文发送成功, 返回1, 否则返回-1.
-int sendpkt(sip_pkt_t* pkt, int conn)
+int sendpkt(sip_pkt_t *pkt, int conn)
 {
-    return 0;
+    unsigned char buf[4 + sizeof(*pkt)];
+    memcpy(buf, "!&", 2);
+    memcpy(buf + 2, &pkt->header, sizeof(pkt->header));
+    memcpy(buf + 2 + sizeof(pkt->header), pkt->data, pkt->header.length);
+    memcpy(buf + 2 + sizeof(pkt->header) + pkt->header.length, "!#", 2);
+    if (write(conn, buf, 4 + sizeof(pkt->header) + pkt->header.length) > 0) {
+        return 1;
+    } else {
+        return -1;
+    }
 }
 
 // recvpkt()函数由SON进程调用, 其作用是接收来自重叠网络中其邻居的报文.
