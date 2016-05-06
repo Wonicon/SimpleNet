@@ -95,7 +95,9 @@ static void *routeupdate_daemon(void *arg)
 //它关闭所有连接, 释放所有动态分配的内存.
 void sip_stop()
 {
-    //你需要编写这里的代码.
+    shutdown(son_conn, SHUT_RDWR);
+    close(son_conn);
+    exit(0);
 }
 
 int main(int argc, char *argv[])
