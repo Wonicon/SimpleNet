@@ -165,8 +165,9 @@ void *listen_to_neighbor(void *arg)
         if (ret == -2) {
             break;
         } else if (ret != -1) {
+            printf("Received a pkt from %d\n", sip_pkt.header.src_nodeID);
             if (forwardpktToSIP(&sip_pkt, sip_conn) == -1) {
-                break;
+                puts("Forwarding to SIP failed");
             }
         }
     }
@@ -250,9 +251,6 @@ int main()
 
     //此时, 所有与邻居之间的连接都建立好了
 
-    //等待来自SIP进程的连接
-    waitSIP();
-
     //创建线程监听所有邻居
     tids = calloc((size_t)nbrNum, sizeof(*tids));
     for (int i = 0; i < nbrNum; i++) {
@@ -265,12 +263,19 @@ int main()
     //这时SIGINT的行为才有意义
     signal(SIGINT, son_stop);
 
+    //等待来自SIP进程的连接
+    waitSIP();
+
     sip_pkt_t sip;
     int next_node;
+    int this_id = topology_getMyNodeID();
     while (getpktToSend(&sip, &next_node, sip_conn) != -1) {
         if (next_node == BROADCAST_NODEID) {
+            puts("Received a broadcast");
             for (int i = 0; i < nbrNum; i++) {
-                sendpkt(&sip, nt[i].conn);
+                if (nt[i].nodeID != this_id) {
+                    sendpkt(&sip, nt[i].conn);
+                }
             }
         } else {
             for (int i = 0; i < nbrNum; i++) {

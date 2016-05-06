@@ -37,7 +37,7 @@ int son_sendpkt(int nextNodeID, sip_pkt_t *pkt, int son_conn)
 int son_recvpkt(sip_pkt_t *pkt, int son_conn)
 {
     if (read(son_conn, pkt, sizeof(*pkt)) > 0) {
-        return 0;
+        return 1;
     } else {
         // 连接断开或套接字销毁
         return -1;
@@ -109,7 +109,7 @@ int recvpkt(sip_pkt_t *pkt, int conn)
     char *buf = (void *)pkt;
     enum pkt_state pkt_state = PKTSTART1;
     while (pkt_state != PKTSTOP2) {
-        if (read(conn, &ch, sizeof(ch)) > 0) {
+        if (read(conn, &ch, sizeof(ch)) <= 0) {
             perror("recvpkt");
             return -2;
         }

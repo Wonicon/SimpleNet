@@ -115,12 +115,12 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
+    //启动路由更新线程
+
     pthread_t tid;
     pthread_create(&tid, NULL, routeupdate_daemon, NULL);
 
     printf("SIP layer is started...\n");
-
-    //启动路由更新线程
 
     puts("pkt handler starts");
     sip_pkt_t pkt;
