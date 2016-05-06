@@ -249,6 +249,9 @@ int main()
 
     //此时, 所有与邻居之间的连接都建立好了
 
+    //等待来自SIP进程的连接
+    waitSIP();
+
     //创建线程监听所有邻居
     tids = calloc((size_t)nbrNum, sizeof(*tids));
     for (i = 0; i < nbrNum; i++) {
@@ -260,9 +263,6 @@ int main()
     //注册一个信号句柄, 用于终止进程
     //这时SIGINT的行为才有意义
     signal(SIGINT, son_stop);
-
-    //等待来自SIP进程的连接
-    waitSIP();
 
     for (;;) {}
 }
