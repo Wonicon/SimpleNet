@@ -47,16 +47,18 @@ int son_recvpkt(sip_pkt_t *pkt, int son_conn)
 // 这个函数由SON进程调用, 其作用是接收数据结构sendpkt_arg_t.
 // 报文和下一跳的节点ID被封装进sendpkt_arg_t结构.
 // 参数sip_conn是在SIP进程和SON进程之间的TCP连接的套接字描述符.
-// sendpkt_arg_t结构通过SIP进程和SON进程之间的TCP连接发送, 使用分隔符!&和!#.
-// 为了接收报文, 这个函数使用一个简单的有限状态机FSM
-// PKTSTART1 -- 起点
-// PKTSTART2 -- 接收到'!', 期待'&'
-// PKTRECV -- 接收到'&', 开始接收数据
-// PKTSTOP1 -- 接收到'!', 期待'#'以结束数据的接收
+// sendpkt_arg_t结构通过SIP进程和SON进程之间的TCP连接发送.
 // 如果成功接收sendpkt_arg_t结构, 返回1, 否则返回-1.
 int getpktToSend(sip_pkt_t* pkt, int* nextNode, int sip_conn)
 {
-    return 0;
+    sendpkt_arg_t sendpkt;
+    if (read(sip_conn, &sendpkt, sizeof(sendpkt)) > 0) {
+        memcpy(pkt, &sendpkt.pkt, sizeof(*pkt));
+        *nextNode = sendpkt.nextNodeID;
+        return 1;
+    } else {
+        return -1;
+    }
 }
 
 // forwardpktToSIP()函数是在SON进程接收到来自重叠网络中其邻居的报文后被调用的.

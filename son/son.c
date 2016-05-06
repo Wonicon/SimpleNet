@@ -229,8 +229,7 @@ int main()
 
     //打印所有邻居
     int nbrNum = topology_getNbrNum();
-    int i;
-    for (i = 0; i < nbrNum; i++) {
+    for (int i = 0; i < nbrNum; i++) {
         printf("Overlay network: neighbor %d:%d\n", i + 1, nt[i].nodeID);
     }
 
@@ -256,7 +255,7 @@ int main()
 
     //创建线程监听所有邻居
     tids = calloc((size_t)nbrNum, sizeof(*tids));
-    for (i = 0; i < nbrNum; i++) {
+    for (int i = 0; i < nbrNum; i++) {
         pthread_create(&tids[i], NULL, listen_to_neighbor, &nt[i]);
     }
     printf("Overlay network: node initialized...\n");
@@ -266,5 +265,20 @@ int main()
     //这时SIGINT的行为才有意义
     signal(SIGINT, son_stop);
 
-    for (;;) {}
+    sip_pkt_t sip;
+    int next_node;
+    while (getpktToSend(&sip, &next_node, sip_conn) != -1) {
+        if (next_node == BROADCAST_NODEID) {
+            for (int i = 0; i < nbrNum; i++) {
+                sendpkt(&sip, nt[i].conn);
+            }
+        } else {
+            for (int i = 0; i < nbrNum; i++) {
+                if (next_node == nt[i].nodeID) {
+                    sendpkt(&sip, nt[i].nodeID);
+                    break;
+                }
+            }
+        }
+    }
 }
