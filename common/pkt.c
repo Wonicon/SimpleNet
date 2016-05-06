@@ -14,14 +14,20 @@ enum pkt_state {
     PKTSTOP2
 };
 
-// son_sendpkt()由SIP进程调用, 其作用是要求SON进程将报文发送到重叠网络中. SON进程和SIP进程通过一个本地TCP连接互连.
-// 在son_sendpkt()中, 报文及其下一跳的节点ID被封装进数据结构sendpkt_arg_t, 并通过TCP连接发送给SON进程.
+// son_sendpkt()由SIP进程调用, 其作用是要求SON进程将报文发送到重叠网络中. SON进程和SIP进程通过一个 unix domain socket 互连.
+// 在son_sendpkt()中, 报文及其下一跳的节点ID被封装进数据结构sendpkt_arg_t, 并通过 unix domain socket 发送给SON进程.
 // 参数son_conn是SIP进程和SON进程之间的TCP连接套接字描述符.
-// 当通过SIP进程和SON进程之间的TCP连接发送数据结构sendpkt_arg_t时, 使用'!&'和'!#'作为分隔符, 按照'!& sendpkt_arg_t结构 !#'的顺序发送.
 // 如果发送成功, 返回1, 否则返回-1.
-int son_sendpkt(int nextNodeID, sip_pkt_t* pkt, int son_conn)
+int son_sendpkt(int nextNodeID, sip_pkt_t *pkt, int son_conn)
 {
-    return 0;
+    sendpkt_arg_t sendptk;
+    sendptk.nextNodeID = nextNodeID;
+    sendptk.pkt = *pkt;
+    if (write(son_conn, &sendptk, sizeof(sendptk)) > 0) {
+        return 1;
+    } else {
+        return -1;
+    }
 }
 
 // son_recvpkt()函数由SIP进程调用, 其作用是接收来自SON进程的报文.
