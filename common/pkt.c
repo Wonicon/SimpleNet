@@ -25,16 +25,16 @@ int son_sendpkt(int nextNodeID, sip_pkt_t* pkt, int son_conn)
 }
 
 // son_recvpkt()函数由SIP进程调用, 其作用是接收来自SON进程的报文.
-// 参数son_conn是SIP进程和SON进程之间TCP连接的套接字描述符. 报文通过SIP进程和SON进程之间的TCP连接发送, 使用分隔符!&和!#.
-// 为了接收报文, 这个函数使用一个简单的有限状态机FSM
-// PKTSTART1 -- 起点
-// PKTSTART2 -- 接收到'!', 期待'&'
-// PKTRECV -- 接收到'&', 开始接收数据
-// PKTSTOP1 -- 接收到'!', 期待'#'以结束数据的接收
+// 参数son_conn是SIP进程和SON进程之间TCP连接的套接字描述符. 报文通过SIP进程和SON进程之间的 unix domain 套接字连接发送.
 // 如果成功接收报文, 返回1, 否则返回-1.
-int son_recvpkt(sip_pkt_t* pkt, int son_conn)
+int son_recvpkt(sip_pkt_t *pkt, int son_conn)
 {
-    return 0;
+    if (read(son_conn, pkt, sizeof(*pkt)) > 0) {
+        return 0;
+    } else {
+        // 连接断开或套接字销毁
+        return -1;
+    }
 }
 
 // 这个函数由SON进程调用, 其作用是接收数据结构sendpkt_arg_t.
