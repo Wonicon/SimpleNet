@@ -59,12 +59,11 @@ int getpktToSend(sip_pkt_t* pkt, int* nextNode, int sip_conn)
 // 如果报文发送成功, 返回1, 否则返回-1.
 int forwardpktToSIP(sip_pkt_t *pkt, int sip_conn)
 {
-    ssize_t ret = write(sip_conn, pkt, sizeof(*pkt));
-    if (ret == 0 || ret == -1) {
+    if (write(sip_conn, pkt, sizeof(*pkt)) > 0) {
+        return 1;
+    } else {
         return -1;
     }
-
-    return 1;
 }
 
 // sendpkt()函数由SON进程调用, 其作用是将接收自SIP进程的报文发送给下一跳.
