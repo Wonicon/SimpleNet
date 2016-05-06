@@ -67,7 +67,7 @@ static void *routeupdate_daemon(void *arg)
 {
     //你需要编写这里的代码.
     struct timeval tv;
-    tv.tv_sec = ROUTE_UPDATE;
+    tv.tv_sec = ROUTEUPDATE_INTERVAL;
     tv.tv_usec = 0;
 
     pkt_routeupdate_t update;
