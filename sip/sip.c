@@ -70,9 +70,22 @@ static void *routeupdate_daemon(void *arg)
     tv.tv_sec = ROUTE_UPDATE;
     tv.tv_usec = 0;
 
+    pkt_routeupdate_t update;
+    memset(&update, 0, sizeof(update));
+    update.entryNum = 0;
+
+    sip_pkt_t pkt;
+    memset(&pkt, 0, sizeof(pkt));
+
+    pkt.header.type = ROUTE_UPDATE;
+    pkt.header.length = sizeof(update);
+    pkt.header.src_nodeID = topology_getMyNodeID();
+    pkt.header.dest_nodeID = 0;
+    memcpy(pkt.data, &update, sizeof(update));
+
     while (1) {
         select(0, NULL, NULL, NULL, &tv);
-        puts("hello");
+        son_sendpkt(BROADCAST_NODEID, &pkt, son_conn);
     }
 
     return NULL;
