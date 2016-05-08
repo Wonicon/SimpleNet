@@ -1,7 +1,5 @@
 //文件名: common/constants.h
 
-//描述: 这个文件包含STCP协议使用的常量
-
 //创建日期: 2015年
 
 #ifndef CONSTANTS_H
@@ -52,5 +50,35 @@ static inline struct timeval ns_to_tv(int ns)
     tv.tv_usec = (ns % SEC_IN_NS) / USEC_IN_NS;
     return tv;
 }
+
+/*******************************************************************/
+//重叠网络参数
+/*******************************************************************/
+
+//这个端口号用于重叠网络中节点之间的互联, 你应该修改它为一个随机值以避免和其他同学的设置发生冲突
+#define CONNECTION_PORT 3000
+
+//最大SIP报文数据长度: 1500 - sizeof(sip header)
+#define MAX_PKT_LEN 1488
+
+/*******************************************************************/
+//网络层参数
+/*******************************************************************/
+
+//用于 UNIX DOMAIN 通信的 PATH
+//这是一个隐藏符号链接
+#define UNIX_PATH ""
+
+//重叠网络支持的最大节点数
+#define MAX_NODE_NUM 10
+
+//无穷大的链路代价值, 如果两个节点断开连接了, 它们之间的链路代价值就是INFINITE_COST
+#define INFINITE_COST 999
+
+//这是广播节点ID. 如果SON进程从SIP进程处接收到一个目标节点ID为BROADCAST_NODEID的报文, 它应该将该报文发送给它的所有邻居
+#define BROADCAST_NODEID 9999
+
+//路由更新广播间隔, 以秒为单位
+#define ROUTEUPDATE_INTERVAL 5
 
 #endif
