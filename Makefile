@@ -33,7 +33,6 @@ stress: $(LAB6_STRESS_SERVER_TARGET) $(LAB6_STRESS_CLIENT_TARGET)
 simple: $(LAB6_SIMPLE_SERVER_TARGET) $(LAB6_SIMPLE_CLIENT_TARGET)
 
 APP_SRC := $(shell find -type f -name "app_*.c")
-APP_OBJ := $(APP_OBJ:%.c=$(BUILD)%.o)
 APP_DEP := $(APP_SRC:%.c=$(BUILD)/%.d)
 -include $(APP_DEP)
 
