@@ -109,7 +109,15 @@ static void *routeupdate_daemon(void *arg)
 //就根据路由表转发报文给下一跳.如果报文是路由更新报文,就更新距离矢量表和路由表.
 void *pkthandler(void *arg)
 {
-    //你需要编写这里的代码.
+    puts("pkt handler starts");
+    sip_pkt_t pkt;
+    while (son_recvpkt(&pkt, son_conn) > 0) {
+        printf("Routing: received a packet from neighbor %d\n", pkt.header.src_nodeID);
+    }
+    shutdown(son_conn, SHUT_RDWR);
+    close(son_conn);
+    son_conn = -1;
+    puts("pkt handler exits");
     return 0;
 }
 
@@ -128,8 +136,29 @@ void sip_stop(int unused)
 //当本地STCP进程断开连接时, 这个函数等待下一个STCP进程的连接.
 void waitSTCP()
 {
-    //你需要编写这里的代码.
-    return;
+    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd == -1) {
+        perror(NULL);
+    }
+
+    struct sockaddr_un sockaddr_un;
+    memset(&sockaddr_un, 0, sizeof(sockaddr_un));
+    sockaddr_un.sun_family = AF_UNIX;
+    strncpy(sockaddr_un.sun_path, STCP_PATH, sizeof(sockaddr_un.sun_path) - 1);
+    unlink(STCP_PATH);
+    if (bind(fd, (struct sockaddr *)&sockaddr_un, sizeof(sockaddr_un)) == -1) {
+        perror(NULL);
+    }
+    if (listen(fd, 5) == -1) {
+        perror(NULL);
+    }
+    if ((stcp_conn = accept(fd, NULL, NULL)) == -1) {
+        perror(NULL);
+    }
+
+    puts("unix domain for sip-stcp established");
+
+    while (1) {}
 }
 
 int main(int argc, char *argv[])

@@ -13,6 +13,7 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <netinet/in.h>
 #include <string.h>
 #include <arpa/inet.h>
@@ -36,15 +37,31 @@
 
 //这个函数连接到本地SIP进程的端口SIP_PORT. 如果TCP连接失败, 返回-1. 连接成功, 返回TCP套接字描述符, STCP将使用该描述符发送段.
 int connectToSIP() {
-	//你需要编写这里的代码.
-    return 0;
+	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (fd == -1) {
+		perror(NULL);
+		return -1;
+	}
+
+	struct sockaddr_un addr;
+	memset(&addr, 0, sizeof(addr));
+	addr.sun_family = AF_UNIX;
+	strncpy(addr.sun_path, STCP_PATH, sizeof(addr.sun_path) - 1);
+
+	if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+		perror("connect error");
+		return -1;
+	}
+
+	puts("unix domain for stcp-sip established");
+
+	return fd;
 }
 
-//这个函数断开到本地SIP进程的TCP连接. 
+//这个函数断开到本地SIP进程的TCP连接.
 void disconnectToSIP(int sip_conn) {
-
-	//你需要编写这里的代码.
-	
+	shutdown(sip_conn, SHUT_RDWR);
+	close(sip_conn);
 }
 
 int main() {

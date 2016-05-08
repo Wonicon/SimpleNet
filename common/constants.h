@@ -67,7 +67,8 @@ static inline struct timeval ns_to_tv(int ns)
 
 //用于 UNIX DOMAIN 通信的 PATH
 //这是一个隐藏符号链接
-#define UNIX_PATH ""
+#define UNIX_PATH "son-sip"
+#define STCP_PATH "sip-stcp"
 
 //最大路由表槽数 
 #define MAX_ROUTINGTABLE_SLOTS 10
