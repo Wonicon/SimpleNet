@@ -14,7 +14,7 @@ else
         echo $i
         # Q: Why not just upload binaries?
         # A: GDB needs the original source code files.
-        rsync --archive --verbose ./sip ./son ./topology ./common --exclude=.git --exclude=*.o b$1@csnetlab_$i.nju.edu.cn:~
+        rsync --archive --verbose . --exclude=.* --exclude=*.o b$1@csnetlab_$i.nju.edu.cn:~
     done
     echo done
 fi

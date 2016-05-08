@@ -176,7 +176,7 @@ static void *timer(void *arg)
 /**
  * @brief connect to a remote server
  */
-int stcp_client_connect(int sockfd, unsigned int server_port)
+int stcp_client_connect(int sockfd, int nodeID, unsigned int server_port)
 {
     client_tcb_t *tcb = tcbs[sockfd];
 

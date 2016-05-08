@@ -1,5 +1,5 @@
 CC     := gcc
-CFLAGS := -Wall -Werror -Wfatal-errors -std=gnu11 -g -Og -pthread -I ./common
+CFLAGS := -Wall -Werror -Wfatal-errors -Wno-unused-result -std=gnu11 -g -Og -pthread -I ./common
 
 # Subdirectory definitions
 CLIENT := client
@@ -8,29 +8,8 @@ COMMON := common
 BUILD  := build
 
 # Different target prefixes
-LAB5_PREFIX := lab5
-LAB6_SIMPLE_PREFIX := simple
-LAB6_STRESS_PREFIX := stress
 
-LAB5_CLIENT_TARGET        := $(LAB5_PREFIX)_$(CLIENT)
-LAB5_SERVER_TARGET        := $(LAB5_PREFIX)_$(SERVER)
-
-LAB6_SIMPLE_CLIENT_TARGET := $(LAB6_SIMPLE_PREFIX)_$(CLIENT)
-LAB6_SIMPLE_SERVER_TARGET := $(LAB6_SIMPLE_PREFIX)_$(SERVER)
-
-LAB6_STRESS_CLIENT_TARGET := $(LAB6_STRESS_PREFIX)_$(CLIENT)
-LAB6_STRESS_SERVER_TARGET := $(LAB6_STRESS_PREFIX)_$(SERVER)
-
-lab07: CFLAGS += -I ./topology
-lab07: sip/sip son/son
-
-lab06: simple stress
-
-lab05: $(LAB5_SERVER_TARGET) $(LAB5_CLIENT_TARGET)
-
-stress: $(LAB6_STRESS_SERVER_TARGET) $(LAB6_STRESS_CLIENT_TARGET)
-
-simple: $(LAB6_SIMPLE_SERVER_TARGET) $(LAB6_SIMPLE_CLIENT_TARGET)
+all: app_simple_client app_stress_client app_simple_server app_stress_server son/son sip/sip
 
 APP_SRC := $(shell find -type f -name "app_*.c")
 APP_DEP := $(APP_SRC:%.c=$(BUILD)/%.d)
@@ -71,36 +50,31 @@ green  := "\033[0;32m"
 orange := "\033[1;33m"
 end    := "\033[0m"
 
-$(LAB6_SIMPLE_CLIENT_TARGET): $(CLIENT_OBJ) $(COMMON_OBJ) $(BUILD)/$(CLIENT)/app_simple_client.o
+app_simple_client: $(CLIENT_OBJ) $(COMMON_OBJ) $(TOPOLOGY_OBJ) $(BUILD)/$(CLIENT)/app_simple_client.o
 	@echo $(orange)+ build $@$(end)
 	@$(CC) $(CFLAGS) -o $@ $^
 
-$(LAB6_SIMPLE_SERVER_TARGET): $(SERVER_OBJ) $(COMMON_OBJ) $(BUILD)/$(SERVER)/app_simple_server.o
+app_simple_server: $(SERVER_OBJ) $(COMMON_OBJ) $(TOPOLOGY_OBJ) $(BUILD)/$(SERVER)/app_simple_server.o
+	@mkdir -p lab08
 	@echo $(orange)+ build $@$(end)
 	@$(CC) $(CFLAGS) -o $@ $^
 
-$(LAB6_STRESS_CLIENT_TARGET): $(CLIENT_OBJ) $(COMMON_OBJ) $(BUILD)/$(CLIENT)/app_stress_client.o
+app_stress_client: $(CLIENT_OBJ) $(COMMON_OBJ) $(TOPOLOGY_OBJ) $(BUILD)/$(CLIENT)/app_stress_client.o
+	@mkdir -p lab08
 	@echo $(orange)+ build $@$(end)
 	@$(CC) $(CFLAGS) -o $@ $^
 
-$(LAB6_STRESS_SERVER_TARGET): $(SERVER_OBJ) $(COMMON_OBJ) $(BUILD)/$(SERVER)/app_stress_server.o
-	@echo $(orange)+ build $@$(end)
-	@$(CC) $(CFLAGS) -o $@ $^
-
-$(LAB5_CLIENT_TARGET): $(CLIENT_OBJ) $(COMMON_OBJ) $(BUILD)/$(CLIENT)/app_client.o
-	@echo $(orange)+ build $@$(end)
-	@$(CC) $(CFLAGS) -o $@ $^
-
-$(LAB5_SERVER_TARGET): $(SERVER_OBJ) $(COMMON_OBJ) $(BUILD)/$(SERVER)/app_server.o
+app_stress_server: $(SERVER_OBJ) $(COMMON_OBJ) $(TOPOLOGY_OBJ) $(BUILD)/$(SERVER)/app_stress_server.o
+	@mkdir -p lab08
 	@echo $(orange)+ build $@$(end)
 	@$(CC) $(CFLAGS) -o $@ $^
 
 son/son: $(COMMON_OBJ) $(TOPOLOGY_OBJ) $(SON_OBJ)
-	@echo $(organe)+ build $@$(end)
+	@echo $(orange)+ build $@$(end)
 	@$(CC) $(CFLAGS) -o $@ $^
 
 sip/sip: $(COMMON_OBJ) $(TOPOLOGY_OBJ) $(SIP_OBJ)
-	@echo $(organe)+ build $@$(end)
+	@echo $(orange)+ build $@$(end)
 	@$(CC) $(CFLAGS) -o $@ $^
 
 $(BUILD)/%.o: %.c Makefile
@@ -110,11 +84,7 @@ $(BUILD)/%.o: %.c Makefile
 
 clean:
 	@rm -rf $(BUILD)
-	@rm -rf $(LAB5_SERVER_TARGET)
-	@rm -rf $(LAB5_CLIENT_TARGET)
-	@rm -rf $(LAB6_SIMPLE_SERVER_TARGET)
-	@rm -rf $(LAB6_SIMPLE_CLIENT_TARGET)
-	@rm -rf $(LAB6_STRESS_SERVER_TARGET)
-	@rm -rf $(LAB6_STRESS_CLIENT_TARGET)
 	@rm -rf son/son
 	@rm -rf sip/sip
+	@rm -rf app_simple_client app_simple_server
+	@rm -rf app_stress_client app_stress_server
