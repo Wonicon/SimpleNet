@@ -115,7 +115,7 @@ void *pkthandler(void *arg)
 
 //这个函数终止SIP进程, 当SIP进程收到信号SIGINT时会调用这个函数.
 //它关闭所有连接, 释放所有动态分配的内存.
-void sip_stop()
+void sip_stop(int unused)
 {
     shutdown(son_conn, SHUT_RDWR);
     close(son_conn);
