@@ -8,6 +8,7 @@
 
 #include "seg.h"
 #include "network.h"
+#include <string.h>
 
 //
 //
@@ -61,102 +62,69 @@ const char *seg_type_s(seg_t *seg)
     return seg_type_sym[seg->header.type];
 }
 
+
+//STCP进程使用这个函数发送sendseg_arg_t结构(包含段及其目的节点ID)给SIP进程.
+//参数sip_conn是在STCP进程和SIP进程之间连接的TCP描述符.
+//如果sendseg_arg_t发送成功,就返回1,否则返回-1.
 unsigned short checksum(seg_t *seg);
-int sip_sendseg(int connection, seg_t *segptr)
+int sip_sendseg(int sip_conn, int dest_nodeID, seg_t* segptr)
 {
-    //caculate checksum
     segptr->header.checksum = checksum(segptr);
-
-    if (send(connection, SEG_BEGIN, SEG_BEGIN_LEN, 0) == -1) {
+    sendseg_arg_t pkt;
+    pkt.nodeID = dest_nodeID;
+    pkt.seg = *segptr;
+    if (send(sip_conn, &pkt, sizeof(pkt), 0) > 0) {
+        return 1;
+    } else {
         return -1;
     }
-
-    if (send(connection, &segptr->header, sizeof(segptr->header), 0) == -1) {
-        return -1;
-    }
-
-    if (segptr->header.length > 0 && send(connection, segptr->data, segptr->header.length, 0) == -1) {
-        return -1;
-    }
-
-    if (send(connection, SEG_END, SEG_END_LEN, 0) == -1) {
-        return -1;
-    }
-
-    return 1;
 }
 
-// 通过重叠网络(在本实验中，是一个TCP连接)接收STCP段. 我们建议你使用recv()一次接收一个字节.
-// 你需要查找"!&", 然后是seg_t, 最后是"!#". 这实际上需要你实现一个搜索的FSM, 可以考虑使用如下所示的FSM.
-// SEGSTART1 -- 起点
-// SEGSTART2 -- 接收到'!', 期待'&'
-// SEGRECV -- 接收到'&', 开始接收数据
-// SEGSTOP1 -- 接收到'!', 期待'#'以结束数据的接收
-// 这里的假设是"!&"和"!#"不会出现在段的数据部分(虽然相当受限, 但实现会简单很多).
-// 你应该以字符的方式一次读取一个字节, 将数据部分拷贝到缓冲区中返回给调用者.
-//
-// 注意: 还有一种处理方式可以允许"!&"和"!#"出现在段首部或段的数据部分. 具体处理方式是首先确保读取到!&，然后
-// 直接读取定长的STCP段首部, 不考虑其中的特殊字符, 然后按照首部中的长度读取段数据, 最后确保以!#结尾.
-//
-// 注意: 在你剖析了一个STCP段之后,  你需要调用seglost()来模拟网络中数据包的丢失.
-// 在sip_recvseg()的下面是seglost()的代码.
-//
-// 如果段丢失了, 就返回1, 否则返回0.
-//
-//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-//
+//STCP进程使用这个函数来接收来自SIP进程的包含段及其源节点ID的sendseg_arg_t结构.
+//参数sip_conn是STCP进程和SIP进程之间连接的TCP描述符.
+//当接收到段时, 使用seglost()来判断该段是否应被丢弃并检查校验和.
+//如果成功接收到sendseg_arg_t就返回1, 否则返回-1.
 int checkchecksum(seg_t *seg);
-int sip_recvseg(int connection, seg_t *segptr)
+int sip_recvseg(int sip_conn, int* src_nodeID, seg_t* segptr)
 {
-    char indicator;        // 是否开始读取 boundary_markup
-    char boundary_markup;  // 标记界限字符的类型
-
-    // 找到 "!&" 起始标记
-    do {
-        if (!Recv(connection, &indicator, sizeof(indicator))) {
-            return -1;
-        }
-    } while (indicator != '!');
-    Recv(connection, &boundary_markup, sizeof(boundary_markup));
-    if (boundary_markup != '&') {
-        log("Unexpected boundary markup %c", boundary_markup);
-        return 2;  // 段损坏
+    sendseg_arg_t pkt;
+    if (recv(sip_conn, &pkt, sizeof(pkt), 0) <= 0) {
+        return -1;
     }
 
-    // 读取段
-    Recv(connection, &segptr->header, sizeof(segptr->header));
-    Recv(connection, segptr->data, sizeof(*segptr->data) * segptr->header.length);
+    *src_nodeID = pkt.nodeID;
+    *segptr = pkt.seg;
 
     if (checkchecksum(segptr) == -1) {
-        log("checksum failed");
-        return 1;
-    }
-
-    // 检查结束标记 "!#"
-    indicator = '\0';
-    Recv(connection, &indicator, sizeof(indicator));
-    if (indicator != '!') {
-        log("end markup 1 failed");
-        return 2; //段损坏
-    }
-
-    Recv(connection, &boundary_markup, sizeof(boundary_markup));
-    if (boundary_markup != '#') {
-        log("end markup 2 failed");
         return 2;
     }
 
-    //丢包
+    //内部随机损坏段
     if (seglost(segptr) == 1) {
+        //丢包
         return 1;
-    } else {
+    } else if (!checkchecksum(segptr)) {
         //段损坏(校验和错误)
-        if (checkchecksum(segptr)) {
-            return 0;
-        } else {
-            return 2;
-        }
+        return 2;
+    } else {
+        return 0;
     }
+}
+
+//SIP进程使用这个函数接收来自STCP进程的包含段及其目的节点ID的sendseg_arg_t结构.
+//参数stcp_conn是在STCP进程和SIP进程之间连接的TCP描述符.
+//如果成功接收到sendseg_arg_t就返回1, 否则返回-1.
+int getsegToSend(int stcp_conn, int* dest_nodeID, seg_t* segPtr)
+{
+    return 0;
+}
+
+//SIP进程使用这个函数发送包含段及其源节点ID的sendseg_arg_t结构给STCP进程.
+//参数stcp_conn是STCP进程和SIP进程之间连接的TCP描述符.
+//如果sendseg_arg_t被成功发送就返回1, 否则返回-1.
+int forwardsegToSTCP(int stcp_conn, int src_nodeID, seg_t* segPtr)
+{
+    return 0;
 }
 
 int seglost(seg_t *seg)

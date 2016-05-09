@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include "stcp_client.h"
 #include "common.h"
+#include "../topology/topology.h"
 
 /*面向应用层的接口*/
 
@@ -24,6 +25,8 @@
 //
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
+
+static int LOCAL_ID = 0;
 
 /**
  * @brief 内部日志信息，自动输出 tcb 相关内容。
@@ -69,6 +72,8 @@ void stcp_client_init(int conn)
         tcbs[i] = NULL;
     }
     log("client TCB pool has been initialized.");
+
+    LOCAL_ID = topology_getMyNodeID();
 
     //启动接收网络层报文段的线程
     son_connection = conn;
@@ -132,7 +137,7 @@ send_ctrl(unsigned short type, unsigned short src_port, unsigned short dst_port)
         .header.length = 0,
         .header.type = type,
     };
-    if (sip_sendseg(son_connection, &syn) == -1) {
+    if (sip_sendseg(son_connection, LOCAL_ID, &syn) == -1) {
         log("sending ctrl to port %d failed", dst_port);
         return -1;
     } else {
@@ -239,10 +244,10 @@ void *sendbuf_timer(void *arg)
             // The time out for a data segment is smaller than the SENDBUF_POLLING_INTERVAL.
             // Therefore we can assume that these data hasn't been acked.
             LOG(tcb, "resends seq %d", curr->seg.header.seq_num);
-            sip_sendseg(son_connection, &curr->seg);
+            sip_sendseg(son_connection, LOCAL_ID, &curr->seg);
         }
         for (; curr != NULL; curr = curr->next) {
-            sip_sendseg(son_connection, &curr->seg);
+            sip_sendseg(son_connection, LOCAL_ID, &curr->seg);
             tcb->sendBufunSent = tcb->sendBufunSent->next;
         }
         if (tcb->sendBufHead == NULL) {
@@ -519,7 +524,8 @@ void *seghandler(void* arg)
 {
     for (;;) {
         seg_t seg = {};
-        int result = sip_recvseg(son_connection, &seg);
+        int src_id;
+        int result = sip_recvseg(son_connection, &src_id, &seg);
         if (result == -1) {
             // 收到了模拟 SON 的 TCP 的断开连接请求。
             log("SON closed");

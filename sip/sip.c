@@ -134,7 +134,7 @@ void sip_stop(int unused)
 //在连接建立后, 这个函数从STCP进程处持续接收包含段及其目的节点ID的sendseg_arg_t.
 //接收的段被封装进数据报(一个段在一个数据报中), 然后使用son_sendpkt发送该报文到下一跳. 下一跳节点ID提取自路由表.
 //当本地STCP进程断开连接时, 这个函数等待下一个STCP进程的连接.
-void waitSTCP()
+static void waitSTCP()
 {
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd == -1) {
@@ -152,13 +152,18 @@ void waitSTCP()
     if (listen(fd, 5) == -1) {
         perror(NULL);
     }
-    if ((stcp_conn = accept(fd, NULL, NULL)) == -1) {
-        perror(NULL);
+
+    // 无线循环以接受任意多次 STCP 连接，但是一次只支持一个。
+    // 本函数位于 main 的末尾，所以程序不会从这里退出，只能通过 SIGINT 退出
+    for (;;) {
+        stcp_conn = accept(fd, NULL, NULL);
+        if (stcp_conn == -1) {
+            perror(NULL);
+            continue;
+        } else {
+            puts("unix domain for sip-stcp established");
+        }
     }
-
-    puts("unix domain for sip-stcp established");
-
-    while (1) {}
 }
 
 int main(int argc, char *argv[])

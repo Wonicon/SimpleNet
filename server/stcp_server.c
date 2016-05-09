@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include "stcp_server.h"
 #include "common.h"
+#include "../topology/topology.h"
 
 /*面向应用层的接口*/
 
@@ -22,6 +23,8 @@
 // 该变量作为sip_sendseg和sip_recvseg的输入参数. 最后, 这个函数启动seghandler线程来处理进入的STCP段.
 // 服务器只有一个seghandler.
 //
+
+static int LOCAL_ID = 0;
 
 /**
  * @brief 内部日志信息，自动输出 tcb 相关内容。
@@ -79,6 +82,8 @@ void stcp_server_init(int conn)
         tcbs[i] = NULL;
     }
     log("TCB pool has been initialized.");
+
+    LOCAL_ID = topology_getMyNodeID();
 
     // 启动接受网络层报文段的线程
     son_connection = conn;
@@ -265,7 +270,7 @@ static inline void send_ctrl(unsigned short type, unsigned short src_port, unsig
         .header.length = 0,
         .header.type = type,
     };
-    if (sip_sendseg(son_connection, &synack) == -1) {
+    if (sip_sendseg(son_connection, LOCAL_ID, &synack) == -1) {
         log("sending ctrl to port %d failed", dst_port);
     }
 }
@@ -282,7 +287,7 @@ static inline void send_dataack(unsigned int seq, unsigned short src_port, unsig
         .header.type = DATAACK,
         .header.seq_num = seq,
     };
-    if (sip_sendseg(son_connection, &synack) == -1) {
+    if (sip_sendseg(son_connection, LOCAL_ID, &synack) == -1) {
         log("sending ctrl to port %d failed", dst_port);
     }
 }
@@ -385,7 +390,8 @@ void *seghandler(void* arg)
 {
     for (;;) {
         seg_t seg = {};
-        int result = sip_recvseg(son_connection, &seg);
+        int src_id;
+        int result = sip_recvseg(son_connection, &src_id, &seg);
         if (result == -1) {
             // 收到了模拟 SON 的 TCP 的断开连接请求。
             log("SON closed");
