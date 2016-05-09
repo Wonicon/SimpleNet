@@ -116,7 +116,14 @@ int sip_recvseg(int sip_conn, int* src_nodeID, seg_t* segptr)
 //如果成功接收到sendseg_arg_t就返回1, 否则返回-1.
 int getsegToSend(int stcp_conn, int* dest_nodeID, seg_t* segPtr)
 {
-    return 0;
+    sendseg_arg_t ptk;
+    if (recv(stcp_conn, &ptk, sizeof(ptk), 0) > 0) {
+        *dest_nodeID = ptk.nodeID;
+        *segPtr = ptk.seg;
+        return 1;
+    } else {
+        return -1;
+    }
 }
 
 //SIP进程使用这个函数发送包含段及其源节点ID的sendseg_arg_t结构给STCP进程.
@@ -124,7 +131,14 @@ int getsegToSend(int stcp_conn, int* dest_nodeID, seg_t* segPtr)
 //如果sendseg_arg_t被成功发送就返回1, 否则返回-1.
 int forwardsegToSTCP(int stcp_conn, int src_nodeID, seg_t* segPtr)
 {
-    return 0;
+    sendseg_arg_t pkt;
+    pkt.nodeID = src_nodeID;
+    pkt.seg = *segPtr;
+    if (send(stcp_conn, &pkt, sizeof(pkt), 0) > 0) {
+        return 1;
+    } else {
+        return -1;
+    }
 }
 
 int seglost(seg_t *seg)

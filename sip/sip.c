@@ -21,6 +21,7 @@
 #include <sys/time.h> // 定时信号
 
 #include "../common/constants.h"
+#include "../common/seg.h"
 #include "../common/pkt.h"
 #include "../topology/topology.h"
 #include "sip.h"
@@ -113,7 +114,21 @@ void *pkthandler(void *arg)
     sip_pkt_t pkt;
     while (son_recvpkt(&pkt, son_conn) > 0) {
         printf("Routing: received a packet from neighbor %d\n", pkt.header.src_nodeID);
+        if (pkt.header.type == ROUTE_UPDATE) {
+            puts("route update!");
+        } else if (topology_getMyNodeID() == pkt.header.dest_nodeID) {  // TODO save my id
+            printf("recv segment from %d\n", pkt.header.src_nodeID);
+            // 转发给 STCP 不检查返回值是因为可以允许连续若干个 STCP 用例，所以中途断开可以被容忍。
+            forwardsegToSTCP(stcp_conn, pkt.header.src_nodeID, (void *)&pkt.data);
+        } else {
+            int next_id = routingtable_getnextnode(routingtable, pkt.header.dest_nodeID);
+            printf("foward: seg(%d -> %d) next hop %d\n", pkt.header.src_nodeID, pkt.header.dest_nodeID, next_id);
+            if (son_sendpkt(next_id, &pkt, son_conn) < 0) {
+                break; // 不可接受 SON 的异常
+            }
+        }
     }
+
     shutdown(son_conn, SHUT_RDWR);
     close(son_conn);
     son_conn = -1;
@@ -153,7 +168,7 @@ static void waitSTCP()
         perror(NULL);
     }
 
-    // 无线循环以接受任意多次 STCP 连接，但是一次只支持一个。
+    // 无限循环以接受任意多次 STCP 连接，但是一次只支持一个。
     // 本函数位于 main 的末尾，所以程序不会从这里退出，只能通过 SIGINT 退出
     for (;;) {
         stcp_conn = accept(fd, NULL, NULL);
@@ -162,6 +177,25 @@ static void waitSTCP()
             continue;
         } else {
             puts("unix domain for sip-stcp established");
+        }
+
+        int dst_id;
+        sip_pkt_t pkt;
+        seg_t *segptr = (void *)pkt.data;  // 直接往 data 段里写，减少一次结构体拷贝
+        while (getsegToSend(stcp_conn, &dst_id, segptr) > 0) {
+            // 初始路由
+            int next_id = routingtable_getnextnode(routingtable, dst_id);
+            printf("stcp segment to %d, forwarding to %d\n", dst_id, next_id);
+            // 准备网络层协议头，按有效数据长度标记长度并拷贝数据
+            pkt.header.dest_nodeID = dst_id;
+            pkt.header.src_nodeID = topology_getMyNodeID();
+            pkt.header.length = sizeof(segptr->header) + segptr->header.length;
+            pkt.header.type = SIP;
+            if (son_sendpkt(next_id, &pkt, son_conn) < 0) {
+                return;  // 不可接受 SON 的异常
+            } else {
+                puts("send pkt successfully");
+            }
         }
     }
 }
