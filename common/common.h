@@ -1,6 +1,7 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -18,6 +19,15 @@
 
 #define STR(x) #x
 
+static inline const char *timestamp(char *s, size_t max)
+{
+    time_t t = time(NULL);
+    struct tm tm;
+    gmtime_r(&t, &tm);
+    strftime(s, max, "%T", &tm);
+    return s;
+}
+
 /**
  * @brief 报告系统错误，并退出程序
  * @param msg 传递给 perror 的消息字符串
@@ -34,17 +44,25 @@
         exit(EXIT_FAILURE);                                   \
     } while (0)
 
-#define log(fmt, ...) \
-    fprintf(stderr, GREEN "[%s:%d] " NORMAL fmt "\n", __FUNCTION__, __LINE__, ## __VA_ARGS__)
+#define log(fmt, ...)                                                               \
+    do {                                                                            \
+        char __s[32];                                                               \
+        fprintf(stderr, GREEN "[%s,%s:%d] " NORMAL fmt "\n",                     \
+                timestamp(__s, sizeof(__s)), __FUNCTION__, __LINE__, ## __VA_ARGS__); \
+    } while (0)
 
-#define warn(fmt, ...) \
-    fprintf(stderr, RED "[%s:%d] " NORMAL fmt "\n", __FUNCTION__, __LINE__, ## __VA_ARGS__)
+#define warn(fmt, ...)                                                              \
+    do {                                                                            \
+        char __s[32];                                                               \
+        fprintf(stderr, RED "[%s,%s:%d] " NORMAL fmt "\n",                       \
+                timestamp(__s, sizeof(__s)), __FUNCTION__, __LINE__, ## __VA_ARGS__); \
+    } while (0)
 
-#define Assert(expr, fmt, ...)                                         \
-    do {                                                               \
-        if (!(expr)) {                                                 \
+#define Assert(expr, fmt, ...)                                          \
+    do {                                                                \
+        if (!(expr)) {                                                  \
             panic("\"" STR(expr) "\"" " failed: " fmt, ## __VA_ARGS__); \
-        }                                                              \
+        }                                                               \
     } while (0)
 
 #endif // COMMON_H
