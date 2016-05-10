@@ -304,8 +304,7 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
     case LISTENING:
         switch (seg->header.type) {
         case SYN:
-            Assert(seg->header.dest_port == tcb->server_portNum, "need to set tcb port");
-            Assert(seg->header.src_port == tcb->client_portNum, "need to set tcb port");
+            tcb->client_portNum = seg->header.src_port;
             send_ctrl(tcb, SYNACK);
             LOG(tcb, "has sent %s", seg_type_s(seg));
 
@@ -428,6 +427,8 @@ void *seghandler(void* arg)
         for (int i = 0; i < MAX_TRANSPORT_CONNECTIONS; i++) {
             if (tcbs[i] && tcbs[i]->server_portNum == seg.header.dest_port) {
                 log("forward the packet to tcb %p", tcbs[i]);
+                Assert(tcbs[i]->client_nodeID == 0 || tcbs[i]->client_nodeID == src_id, "Oops, the id has changed!");
+                tcbs[i]->client_nodeID = src_id;
                 server_fsm(tcbs[i], &seg);
                 break;  // efficiency!
             }
