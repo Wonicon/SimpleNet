@@ -29,7 +29,7 @@ int routingtable_getnextnode(const routingtable_t *routingtable, int destNodeID)
             ent = ent->next;
         }
     }
-    log("dst %d cannot be routed", destNodeID);
+    warn("dst %d cannot be routed", destNodeID);
     return -1;
 }
 

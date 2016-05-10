@@ -190,16 +190,22 @@ static void waitSTCP()
         while (getsegToSend(stcp_conn, &dst_id, segptr) > 0) {
             // 初始路由
             int next_id = routingtable_getnextnode(routingtable, dst_id);
-            log("stcp segment to %d, forwarding to %d", dst_id, next_id);
-            // 准备网络层协议头，按有效数据长度标记长度并拷贝数据
-            pkt.header.dest_nodeID = dst_id;
-            pkt.header.src_nodeID = topology_getMyNodeID();
-            pkt.header.length = sizeof(segptr->header) + segptr->header.length;
-            pkt.header.type = SIP;
-            if (son_sendpkt(next_id, &pkt, son_conn) < 0) {
-                return;  // 不可接受 SON 的异常
-            } else {
-                log("send pkt successfully");
+            if (next_id != -1) {
+                log("stcp segment to %d, forwarding to %d", dst_id, next_id);
+                // 准备网络层协议头，按有效数据长度标记长度并拷贝数据
+                pkt.header.dest_nodeID = dst_id;
+                pkt.header.src_nodeID = topology_getMyNodeID();
+                pkt.header.length = sizeof(segptr->header) + segptr->header.length;
+                pkt.header.type = SIP;
+                if (son_sendpkt(next_id, &pkt, son_conn) < 0) {
+                    return;  // 不可接受 SON 的异常
+                }
+                else {
+                    log("send pkt successfully");
+                }
+            }
+            else {
+                warn("refuse to route unroutable dest %d", dst_id);
             }
         }
     }
