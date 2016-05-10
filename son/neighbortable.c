@@ -4,6 +4,7 @@
 //
 //创建日期: 2015年
 
+#include <common.h>
 #include "neighbortable.h"
 #include "../topology/topology.h"
 #include <stdio.h>
@@ -19,11 +20,11 @@ nbr_entry_t *nt_create()
     int nr_nbrs = topology_getNbrNum();
     int *nbrs = topology_getNbrArray();
 
-    printf("%d has %d neighbors\n", this_id, nr_nbrs);
+    log("%d has %d neighbors", this_id, nr_nbrs);
 
     nbr_entry_t *table = calloc((size_t)nbrs, sizeof(*table));
     for (int i = 0; i < nr_nbrs; i++) {
-        printf("create nbr table entry for %d\n", nbrs[i]);
+        log("create nbr table entry for %d", nbrs[i]);
         table[i].conn = -1;
         table[i].nodeID = nbrs[i];
         table[i].nodeIP = (this_ip & (~0xFF)) | nbrs[i];
@@ -39,7 +40,7 @@ void nt_destroy(nbr_entry_t *table)
 {
     int n = topology_getNbrNum();
     for (int i = 0; i < n; i++) {
-        printf("Disconnect to neighbor ID %d\n", table[i].nodeID);
+        log("Disconnect to neighbor ID %d", table[i].nodeID);
         shutdown(table[i].conn, SHUT_RDWR);
         close(table[i].conn);
     }

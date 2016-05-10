@@ -151,10 +151,12 @@ int stcp_server_accept(int sockfd)
     if (tcb == NULL) {
         log("Invalid stcp socket %d", sockfd);
         return 0;
-    } else if (tcb->state != CLOSED) {
+    }
+    else if (tcb->state != CLOSED) {
         log("The state of this stcp socket is not %s", server_state_s[CLOSED]);
         return 0;
-    } else {
+    }
+    else {
         pthread_mutex_lock(tcb->mutex);
         tcb->state = LISTENING;
         pthread_mutex_unlock(tcb->mutex);

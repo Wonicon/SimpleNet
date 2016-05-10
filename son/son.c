@@ -97,7 +97,7 @@ void *waitNbrs(void *arg)
             int id = topology_getNodeIDfromip(&sockaddr_in.sin_addr);
             for (int i = 0; i < nr_nbrs; i++) {
                 if (nbrs[i].nodeID == id) {
-                    printf("%d is connected to %d\n", this_id, id);
+                    log("%d is connected to %d", this_id, id);
                     nbrs[i].conn = conn;
                     break;
                 }
@@ -134,12 +134,12 @@ int connectNbrs()
                 perror("setsockopt SO_REUSEADDR");
             }
 
-            printf("%d is connecting to %d\n", this_id, nt[i].nodeID);
+            log("%d is connecting to %d", this_id, nt[i].nodeID);
             while (connect(nt[i].conn, (struct sockaddr *)&sockaddr_in, sizeof(sockaddr_in))) {
                 perror("Cannot connect to the neighbor");
-                puts("Retry");
+                log("Retry");
             }
-            printf("%d is connected to %d\n", this_id, nt[i].nodeID);
+            log("%d is connected to %d", this_id, nt[i].nodeID);
         }
     }
     return 0;
@@ -152,7 +152,7 @@ void *listen_to_neighbor(void *arg)
 {
     volatile nbr_entry_t *nbr = arg;
 
-    printf("Listening on %d\n", nbr->nodeID);
+    log("Listening on %d", nbr->nodeID);
 
     sip_pkt_t sip_pkt;
     for (;;) {
@@ -160,14 +160,14 @@ void *listen_to_neighbor(void *arg)
         if (ret == -2) {
             break;
         } else if (ret != -1) {
-            printf("Received a pkt from %d\n", sip_pkt.header.src_nodeID);
+            log("Received a pkt from %d", sip_pkt.header.src_nodeID);
             if (forwardpktToSIP(&sip_pkt, sip_conn) == -1) {
-                puts("Forwarding to SIP failed");
+                log("Forwarding to SIP failed");
             }
         }
     }
 
-    printf("Exit listener on %d\n", nbr->nodeID);
+    log("Exit listener on %d", nbr->nodeID);
     return NULL;
 }
 
@@ -196,7 +196,7 @@ void waitSIP()
         perror(NULL);
     }
 
-    puts("unix domain established");
+    log("unix domain established");
 }
 
 //这个函数停止重叠网络, 当接收到信号SIGINT时, 该函数被调用.
@@ -216,7 +216,7 @@ void son_stop(int unused)
 int main()
 {
     //启动重叠网络初始化工作
-    printf("Overlay network: Node %d initializing...\n", topology_getMyNodeID());
+    log("Overlay network: Node %d initializing...", topology_getMyNodeID());
 
     //创建一个邻居表
     nt = nt_create();
@@ -226,7 +226,7 @@ int main()
     //打印所有邻居
     int nbrNum = topology_getNbrNum();
     for (int i = 0; i < nbrNum; i++) {
-        printf("Overlay network: neighbor %d:%d\n", i + 1, nt[i].nodeID);
+        log("Overlay network: neighbor %d:%d", i + 1, nt[i].nodeID);
     }
 
     //启动waitNbrs线程, 等待节点ID比自己大的所有邻居的进入连接
@@ -242,7 +242,7 @@ int main()
     //等待waitNbrs线程返回
     pthread_join(waitNbrs_thread, NULL);
 
-    puts("SON has been established");
+    log("SON has been established");
 
     //此时, 所有与邻居之间的连接都建立好了
 
@@ -251,8 +251,8 @@ int main()
     for (int i = 0; i < nbrNum; i++) {
         pthread_create(&tids[i], NULL, listen_to_neighbor, &nt[i]);
     }
-    printf("Overlay network: node initialized...\n");
-    printf("Overlay network: waiting for connection from SIP process...\n");
+    log("Overlay network: node initialized...");
+    log("Overlay network: waiting for connection from SIP process...");
 
     //注册一个信号句柄, 用于终止进程
     //这时SIGINT的行为才有意义
@@ -266,7 +266,7 @@ int main()
     int this_id = topology_getMyNodeID();
     while (getpktToSend(&sip, &next_node, sip_conn) != -1) {
         if (next_node == BROADCAST_NODEID) {
-            puts("Received a broadcast");
+            log("Received a broadcast");
             for (int i = 0; i < nbrNum; i++) {
                 if (nt[i].nodeID != this_id) {
                     sendpkt(&sip, nt[i].conn);

@@ -37,10 +37,13 @@
 #define log(fmt, ...) \
     fprintf(stderr, GREEN "[%s:%d] " NORMAL fmt "\n", __FUNCTION__, __LINE__, ## __VA_ARGS__)
 
+#define warn(fmt, ...) \
+    fprintf(stderr, RED "[%s:%d] " NORMAL fmt "\n", __FUNCTION__, __LINE__, ## __VA_ARGS__)
+
 #define Assert(expr, fmt, ...)                                         \
     do {                                                               \
         if (!(expr)) {                                                 \
-            panic("\"" STR(expr) "\"" "failed: " fmt, ## __VA_ARGS__); \
+            panic("\"" STR(expr) "\"" " failed: " fmt, ## __VA_ARGS__); \
         }                                                              \
     } while (0)
 

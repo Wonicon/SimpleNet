@@ -22,7 +22,8 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "../common/constants.h"
+#include "common.h"
+#include "constants.h"
 #include "../topology/topology.h"
 #include "stcp_client.h"
 
@@ -55,7 +56,7 @@ int connectToSIP() {
 		return -1;
 	}
 
-	puts("unix domain for stcp-sip established");
+	log("unix domain for stcp-sip established");
 
 	return fd;
 }
@@ -73,8 +74,7 @@ int main() {
 	//连接到SIP进程并获得TCP套接字描述符	
 	int sip_conn = connectToSIP();
 	if(sip_conn<0) {
-		printf("fail to connect to the local SIP process\n");
-		exit(1);
+		panic("fail to connect to the local SIP process");
 	}
 
 	//初始化stcp客户端
@@ -82,73 +82,64 @@ int main() {
 	sleep(STARTDELAY);
 
 	char hostname[50];
-	printf("Enter server name to connect:");
+	log("Enter server name to connect:");
 	scanf("%s",hostname);
 	int server_nodeID = topology_getNodeIDfromname(hostname);
 	if(server_nodeID == -1) {
-		printf("host name error!\n");
-		exit(1);
+		panic("host name error!");
 	} else {
-		printf("connecting to node %d\n",server_nodeID);
+		log("connecting to node %d",server_nodeID);
 	}
 
 	//在端口87上创建STCP客户端套接字, 并连接到STCP服务器端口88
 	int sockfd = stcp_client_sock(CLIENTPORT1);
 	if(sockfd<0) {
-		printf("fail to create stcp client sock");
-		exit(1);
+		panic("fail to create stcp client sock");
 	}
 	if(stcp_client_connect(sockfd,server_nodeID,SERVERPORT1)<0) {
-		printf("fail to connect to stcp server\n");
-		exit(1);
+		panic("fail to connect to stcp server");
 	}
-	printf("client connected to server, client port:%d, server port %d\n",CLIENTPORT1,SERVERPORT1);
+	log("client connected to server, client port:%d, server port %d",CLIENTPORT1,SERVERPORT1);
 	
 	//在端口89上创建STCP客户端套接字, 并连接到STCP服务器端口90
 	int sockfd2 = stcp_client_sock(CLIENTPORT2);
 	if(sockfd2<0) {
-		printf("fail to create stcp client sock");
-		exit(1);
+		panic("fail to create stcp client sock");
 	}
 	if(stcp_client_connect(sockfd2,server_nodeID,SERVERPORT2)<0) {
-		printf("fail to connect to stcp server\n");
-		exit(1);
+		panic("fail to connect to stcp server");
 	}
-	printf("client connected to server, client port:%d, server port %d\n",CLIENTPORT2, SERVERPORT2);
+	log("client connected to server, client port:%d, server port %d",CLIENTPORT2, SERVERPORT2);
 
 	//通过第一个连接发送字符串
     char mydata[6] = "hello";
 	int i;
 	for(i=0;i<5;i++){
       	stcp_client_send(sockfd, mydata, 6);
-		printf("send string:%s to connection 1\n",mydata);	
-      	}
+		log("send string:%s to connection 1",mydata);
+	}
 	//通过第二个连接发送字符串
     char mydata2[7] = "byebye";
 	for(i=0;i<5;i++){
       	stcp_client_send(sockfd2, mydata2, 7);
-		printf("send string:%s to connection 2\n",mydata2);	
-      	}
+		log("send string:%s to connection 2",mydata2);
+	}
 
 	//等待一段时间, 然后关闭连接
 	sleep(WAITTIME);
 
 	if(stcp_client_disconnect(sockfd)<0) {
-		printf("fail to disconnect from stcp server\n");
-		exit(1);
+		panic("fail to disconnect from stcp server");
 	}
 	if(stcp_client_close(sockfd)<0) {
-		printf("fail to close stcp client\n");
-		exit(1);
+		panic("fail to close stcp client");
 	}
 	
 	if(stcp_client_disconnect(sockfd2)<0) {
-		printf("fail to disconnect from stcp server\n");
-		exit(1);
+		panic("fail to disconnect from stcp server");
 	}
 	if(stcp_client_close(sockfd2)<0) {
-		printf("fail to close stcp client\n");
-		exit(1);
+		panic("fail to close stcp client");
 	}
 
 	//断开与SIP进程之间的连接

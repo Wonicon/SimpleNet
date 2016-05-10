@@ -45,9 +45,9 @@ void routingtable_setnextnode(routingtable_t *routingtable, int destNodeID, int 
     while (*pEntry) {
         if ((*pEntry)->destNodeID == destNodeID) {
             if ((*pEntry)->nextNodeID == nextNodeID) {
-                fprintf(stderr, "No effects insert: dest %d, next %d\n", destNodeID, nextNodeID);
-                exit(EXIT_FAILURE);
-            } else {
+                panic("No effects insert: dest %d, next %d", destNodeID, nextNodeID);
+            }
+            else {
                 (*pEntry)->nextNodeID = nextNodeID;
                 return;
             }
@@ -98,7 +98,7 @@ void routingtable_print(routingtable_t *tab)
     for (int i = 0; i < MAX_ROUTINGTABLE_SLOTS; i++) {
         routingtable_entry_t *ent = tab->hash[i];
         while (ent) {
-            printf("to %d: next hop %d\n", ent->destNodeID, ent->nextNodeID);
+            log("to %d: next hop %d", ent->destNodeID, ent->nextNodeID);
             ent = ent->next;
         }
     }

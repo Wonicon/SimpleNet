@@ -21,7 +21,8 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <time.h>
-#include "../common/constants.h"
+#include <common.h>
+#include <constants.h>
 #include "stcp_server.h"
 
 //创建两个连接, 一个使用客户端端口号87和服务器端口号88. 另一个使用客户端端口号89和服务器端口号90.
@@ -50,7 +51,7 @@ int connectToSIP() {
 		return -1;
 	}
 
-	puts("unix domain for stcp-sip established");
+	log("unix domain for stcp-sip established");
 
 	return fd;
 }
@@ -68,7 +69,7 @@ int main() {
 	//连接到SIP进程并获得TCP套接字描述符
 	int sip_conn = connectToSIP();
 	if(sip_conn<0) {
-		printf("can not connect to the local SIP process\n");
+		log("can not connect to the local SIP process");
 	}
 
 	//初始化STCP服务器
@@ -77,8 +78,7 @@ int main() {
 	//在端口SERVERPORT1上创建STCP服务器套接字 
 	int sockfd= stcp_server_sock(SERVERPORT1);
 	if(sockfd<0) {
-		printf("can't create stcp server\n");
-		exit(1);
+		panic("can't create stcp server");
 	}
 	//监听并接受来自STCP客户端的连接 
 	stcp_server_accept(sockfd);
@@ -86,8 +86,7 @@ int main() {
 	//在端口SERVERPORT2上创建另一个STCP服务器套接字
 	int sockfd2= stcp_server_sock(SERVERPORT2);
 	if(sockfd2<0) {
-		printf("can't create stcp server\n");
-		exit(1);
+		panic("can't create stcp server");
 	}
 	//监听并接受来自STCP客户端的连接 
 	stcp_server_accept(sockfd2);
@@ -98,25 +97,23 @@ int main() {
 	//接收来自第一个连接的字符串
 	for(i=0;i<5;i++) {
 		stcp_server_recv(sockfd,buf1,6);
-		printf("recv string: %s from connection 1\n",buf1);
+		log("recv string: %s from connection 1",buf1);
 	}
 	//接收来自第二个连接的字符串
 	for(i=0;i<5;i++) {
 		stcp_server_recv(sockfd2,buf2,7);
-		printf("recv string: %s from connection 2\n",buf2);
+		log("recv string: %s from connection 2",buf2);
 	}
 
 	sleep(WAITTIME);
 
 	//关闭STCP服务器 
 	if(stcp_server_close(sockfd)<0) {
-		printf("can't destroy stcp server\n");
-		exit(1);
-	}				
+		panic("can't destroy stcp server");
+	}
 	if(stcp_server_close(sockfd2)<0) {
-		printf("can't destroy stcp server\n");
-		exit(1);
-	}				
+		panic("can't destroy stcp server");
+	}
 
 	//断开与SIP进程之间的连接
 	disconnectToSIP(sip_conn);

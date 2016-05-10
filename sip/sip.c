@@ -20,9 +20,10 @@
 #include <unistd.h>
 #include <sys/time.h> // 定时信号
 
-#include "../common/constants.h"
-#include "../common/seg.h"
-#include "../common/pkt.h"
+#include "common.h"
+#include "constants.h"
+#include "seg.h"
+#include "pkt.h"
 #include "../topology/topology.h"
 #include "sip.h"
 #include "nbrcosttable.h"
@@ -69,7 +70,7 @@ int connectToSON()
         return -1;
     }
 
-    puts("unix domain established");
+    log("unix domain established");
 
     return fd;
 }
@@ -110,19 +111,23 @@ static void *routeupdate_daemon(void *arg)
 //就根据路由表转发报文给下一跳.如果报文是路由更新报文,就更新距离矢量表和路由表.
 void *pkthandler(void *arg)
 {
-    puts("pkt handler starts");
+    log("pkt handler starts");
     sip_pkt_t pkt;
     while (son_recvpkt(&pkt, son_conn) > 0) {
-        printf("Routing: received a packet from neighbor %d\n", pkt.header.src_nodeID);
+        log("Routing: received a packet from neighbor %d", pkt.header.src_nodeID);
         if (pkt.header.type == ROUTE_UPDATE) {
-            puts("route update!");
+            log("route update!");
         } else if (topology_getMyNodeID() == pkt.header.dest_nodeID) {  // TODO save my id
-            printf("recv segment from %d\n", pkt.header.src_nodeID);
+            log("recv segment from %d", pkt.header.src_nodeID);
             // 转发给 STCP 不检查返回值是因为可以允许连续若干个 STCP 用例，所以中途断开可以被容忍。
-            forwardsegToSTCP(stcp_conn, pkt.header.src_nodeID, (void *)&pkt.data);
+            if (forwardsegToSTCP(stcp_conn, pkt.header.src_nodeID, (void *)&pkt.data) > 0) {
+                log("forward to stcp successfully");
+            } else {
+                warn("forwarding to stcp failed");
+            }
         } else {
             int next_id = routingtable_getnextnode(routingtable, pkt.header.dest_nodeID);
-            printf("foward: seg(%d -> %d) next hop %d\n", pkt.header.src_nodeID, pkt.header.dest_nodeID, next_id);
+            log("foward: seg(%d -> %d) next hop %d", pkt.header.src_nodeID, pkt.header.dest_nodeID, next_id);
             if (son_sendpkt(next_id, &pkt, son_conn) < 0) {
                 break; // 不可接受 SON 的异常
             }
@@ -132,7 +137,7 @@ void *pkthandler(void *arg)
     shutdown(son_conn, SHUT_RDWR);
     close(son_conn);
     son_conn = -1;
-    puts("pkt handler exits");
+    log("pkt handler exits");
     return 0;
 }
 
@@ -176,7 +181,7 @@ static void waitSTCP()
             perror(NULL);
             continue;
         } else {
-            puts("unix domain for sip-stcp established");
+            log("unix domain for sip-stcp established");
         }
 
         int dst_id;
@@ -185,7 +190,7 @@ static void waitSTCP()
         while (getsegToSend(stcp_conn, &dst_id, segptr) > 0) {
             // 初始路由
             int next_id = routingtable_getnextnode(routingtable, dst_id);
-            printf("stcp segment to %d, forwarding to %d\n", dst_id, next_id);
+            log("stcp segment to %d, forwarding to %d", dst_id, next_id);
             // 准备网络层协议头，按有效数据长度标记长度并拷贝数据
             pkt.header.dest_nodeID = dst_id;
             pkt.header.src_nodeID = topology_getMyNodeID();
@@ -194,7 +199,7 @@ static void waitSTCP()
             if (son_sendpkt(next_id, &pkt, son_conn) < 0) {
                 return;  // 不可接受 SON 的异常
             } else {
-                puts("send pkt successfully");
+                log("send pkt successfully");
             }
         }
     }
@@ -202,7 +207,7 @@ static void waitSTCP()
 
 int main(int argc, char *argv[])
 {
-    printf("SIP layer is starting, pls wait...\n");
+    log("SIP layer is starting, pls wait...");
 
     //初始化全局变量
     nct = nbrcosttable_create();
@@ -225,7 +230,7 @@ int main(int argc, char *argv[])
     //连接到本地SON进程
     son_conn = connectToSON();
     if(son_conn<0) {
-        printf("can't connect to SON process\n");
+        log("can't connect to SON process");
         exit(1);
     }
 
@@ -237,13 +242,13 @@ int main(int argc, char *argv[])
     pthread_t routeupdate_thread;
     pthread_create(&routeupdate_thread,NULL,routeupdate_daemon,(void*)0);
 
-    printf("SIP layer is started...\n");
-    printf("waiting for routes to be established\n");
+    log("SIP layer is started...");
+    log("waiting for routes to be established");
     //sleep(SIP_WAITTIME);
     routingtable_print(routingtable);
 
     //等待来自STCP进程的连接
-    printf("waiting for connection from STCP process\n");
+    log("waiting for connection from STCP process");
     waitSTCP();
 
 }

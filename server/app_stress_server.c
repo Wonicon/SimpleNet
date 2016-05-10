@@ -23,7 +23,8 @@
 #include <stdio.h>
 #include <time.h>
 
-#include "../common/constants.h"
+#include <common.h>
+#include <constants.h>
 #include "stcp_server.h"
 
 //创建一个连接, 使用客户端端口号87和服务器端口号88.
@@ -50,7 +51,7 @@ int connectToSIP() {
 		return -1;
 	}
 
-	puts("unix domain for stcp-sip established");
+	log("unix domain for stcp-sip established");
 
 	return fd;
 }
@@ -68,7 +69,7 @@ int main() {
 	//连接到SIP进程并获得TCP套接字描述符
 	int sip_conn = connectToSIP();
 	if(sip_conn<0) {
-		printf("can not connect to the local SIP process\n");
+		log("can not connect to the local SIP process");
 	}
 
 	//初始化STCP服务器
@@ -77,7 +78,7 @@ int main() {
 	//在端口SERVERPORT1上创建STCP服务器套接字
 	int sockfd= stcp_server_sock(SERVERPORT1);
 	if(sockfd<0) {
-		printf("can't create stcp server\n");
+		log("can't create stcp server");
 		exit(1);
 	}
 	//监听并接受来自STCP客户端的连接
@@ -101,7 +102,7 @@ int main() {
 
 	//关闭STCP服务器
 	if(stcp_server_close(sockfd)<0) {
-		printf("can't destroy stcp server\n");
+		log("can't destroy stcp server");
 		exit(1);
 	}
 
