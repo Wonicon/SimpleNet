@@ -23,18 +23,6 @@ typedef struct packet {
 //路由更新报文定义
 //对于路由更新报文来说, 路由更新信息存储在报文的data字段中
 
-//一条路由更新条目
-typedef struct routeupdate_entry {
-    unsigned int nodeID;    //目标节点ID
-    unsigned int cost;        //从源节点(报文首部中的src_nodeID)到目标节点的链路代价
-} routeupdate_entry_t;
-
-//路由更新报文格式
-typedef struct pktrt {
-    unsigned int entryNum;    //这个路由更新报文中包含的条目数
-    routeupdate_entry_t entry[MAX_NODE_NUM];
-} pkt_routeupdate_t;
-
 // 数据结构sendpkt_arg_t用在函数son_sendpkt()中.
 // son_sendpkt()由SIP进程调用, 其作用是要求SON进程将报文发送到重叠网络中.
 //

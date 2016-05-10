@@ -83,6 +83,6 @@ static inline struct timeval ns_to_tv(int ns)
 #define BROADCAST_NODEID 9999
 
 //路由更新广播间隔, 以秒为单位
-#define ROUTEUPDATE_INTERVAL 5
+#define ROUTEUPDATE_INTERVAL 10
 
 #endif

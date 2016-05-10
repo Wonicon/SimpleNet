@@ -7,7 +7,6 @@
 #ifndef DVTABLE_H
 #define DVTABLE_H
 
-#include <pkt.h>
 #include "nbrcosttable.h"
 
 //dv_entry_t结构定义

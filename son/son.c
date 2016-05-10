@@ -271,6 +271,7 @@ int main()
             log("Received a broadcast");
             for (int i = 0; i < nbrNum; i++) {
                 if (nt[i].nodeID != this_id) {
+                    log("send to %d", nt[i].nodeID);
                     sendpkt(&sip, nt[i].conn);
                 }
             }

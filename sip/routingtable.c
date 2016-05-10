@@ -98,7 +98,7 @@ void routingtable_print(routingtable_t *tab)
     for (int i = 0; i < MAX_ROUTINGTABLE_SLOTS; i++) {
         routingtable_entry_t *ent = tab->hash[i];
         while (ent) {
-            log("to %d: next hop %d", ent->destNodeID, ent->nextNodeID);
+            printf("to %d: next hop %d\n", ent->destNodeID, ent->nextNodeID);
             ent = ent->next;
         }
     }

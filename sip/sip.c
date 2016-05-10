@@ -80,30 +80,52 @@ int connectToSON()
 //广播是通过设置SIP报文头中的dest_nodeID为BROADCAST_NODEID,并通过son_sendpkt()发送报文来完成的.
 static void *routeupdate_daemon(void *arg)
 {
-    //你需要编写这里的代码.
-    struct timeval tv;
-    tv.tv_sec = ROUTEUPDATE_INTERVAL;
-    tv.tv_usec = 0;
-
-    pkt_routeupdate_t update;
-    memset(&update, 0, sizeof(update));
-    update.entryNum = 0;
-
     sip_pkt_t pkt;
     memset(&pkt, 0, sizeof(pkt));
 
+    // 提前初始化更新报文的静态信息
     pkt.header.type = ROUTE_UPDATE;
-    pkt.header.length = sizeof(update);
+    // TODO 这里为了简化使用了数组，所以可以直接知道大小。如果改动 dvEntry 为动态数组，则这里要进行相应的改动。
+    pkt.header.length = sizeof(dv->dvEntry);
     pkt.header.src_nodeID = topology_getMyNodeID();
     pkt.header.dest_nodeID = 0;
-    memcpy(pkt.data, &update, sizeof(update));
 
     while (1) {
+        struct timeval tv;
+        tv.tv_sec = 10;
+        tv.tv_usec = 0;
         select(0, NULL, NULL, NULL, &tv);
-        //son_sendpkt(BROADCAST_NODEID, &pkt, son_conn);
+        pthread_mutex_lock(dv_mutex);
+        memcpy(pkt.data, dv->dvEntry, pkt.header.length);
+        pthread_mutex_unlock(dv_mutex);
+        if (son_sendpkt(BROADCAST_NODEID, &pkt, son_conn) < 0) {
+            break;
+        }
     }
 
+    warn("daemon exits due to sip-son connection breaking");
     return NULL;
+}
+
+// 处理距离向量更新
+void update_dv(sip_pkt_t *arg)
+{
+    // 更新报文只从邻居处获得，所以可以从报文头里获取需要的信息。
+    // 不需要在数据段里额外传递 id 或者让 son 暴露接口。
+    sip_pkt_t *pkt = arg;
+    int nbr_id = pkt->header.src_nodeID;
+    int this_id = topology_getMyNodeID();
+    int nbr_cost = nbrcosttable_getcost(nct, nbr_id);
+    dv_entry_t *nbr_dv = (void *)pkt->data;
+
+    // dv(this, node) = min { nbr_cost + dv(nbr, node) }
+    for (int i = 0; i < MAX_NODE_NUM; i++) {
+        if (nbr_dv->nodeID != -1) {  // A valid element
+            log("%d -> %d -> %d: %d(orig), %d(new)",
+                this_id, nbr_id, nbr_dv->nodeID, dvtable_getcost(dv, nbr_dv->nodeID), nbr_cost + nbr_dv->cost);
+        }
+        nbr_dv++;
+    }
 }
 
 //这个线程处理来自SON进程的进入报文. 它通过调用son_recvpkt()接收来自SON进程的报文.
@@ -117,7 +139,10 @@ void *pkthandler(void *arg)
         log("Routing: received a packet from neighbor %d", pkt.header.src_nodeID);
         if (pkt.header.type == ROUTE_UPDATE) {
             log("route update!");
-        } else if (topology_getMyNodeID() == pkt.header.dest_nodeID) {  // TODO save my id
+            Assert(pkt.header.dest_nodeID == 0, "unexpected");
+            update_dv(&pkt);
+        }
+        else if (topology_getMyNodeID() == pkt.header.dest_nodeID) {  // TODO save my id
             log("recv segment from %d", pkt.header.src_nodeID);
             // 转发给 STCP 不检查返回值是因为可以允许连续若干个 STCP 用例，所以中途断开可以被容忍。
             if (forwardsegToSTCP(stcp_conn, pkt.header.src_nodeID, (void *)&pkt.data) > 0) {
@@ -125,9 +150,10 @@ void *pkthandler(void *arg)
             } else {
                 warn("forwarding to stcp failed");
             }
-        } else {
+        }
+        else {
             int next_id = routingtable_getnextnode(routingtable, pkt.header.dest_nodeID);
-            log("foward: seg(%d -> %d) next hop %d", pkt.header.src_nodeID, pkt.header.dest_nodeID, next_id);
+            log("forward: seg(%d -> %d) next hop %d", pkt.header.src_nodeID, pkt.header.dest_nodeID, next_id);
             if (son_sendpkt(next_id, &pkt, son_conn) < 0) {
                 break; // 不可接受 SON 的异常
             }
@@ -241,8 +267,8 @@ int main(int argc, char *argv[])
     }
 
     //启动线程处理来自SON进程的进入报文
-    pthread_t pkt_handler_thread;
-    pthread_create(&pkt_handler_thread,NULL,pkthandler,(void*)0);
+    //pthread_t pkt_handler_thread;
+    //pthread_create(&pkt_handler_thread,NULL,pkthandler,(void*)0);
 
     //启动路由更新线程
     pthread_t routeupdate_thread;
@@ -250,8 +276,15 @@ int main(int argc, char *argv[])
 
     log("SIP layer is started...");
     log("waiting for routes to be established");
-    sleep(SIP_WAITTIME);
-    routingtable_print(routingtable);
+    pkthandler(NULL);
+
+    //sleep(SIP_WAITTIME);
+    while (1) {
+        puts("===========================");
+        routingtable_print(routingtable);
+        dvtable_print(dv);
+        puts("===========================");
+    }
 
     //等待来自STCP进程的连接
     log("waiting for connection from STCP process");
