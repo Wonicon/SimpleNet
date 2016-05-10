@@ -7,8 +7,6 @@ SERVER := server
 COMMON := common
 BUILD  := build
 
-# Different target prefixes
-
 all: app_simple_client app_stress_client app_simple_server app_stress_server son/son sip/sip
 
 APP_SRC := $(shell find -type f -name "app_*.c")
@@ -55,17 +53,14 @@ app_simple_client: $(CLIENT_OBJ) $(COMMON_OBJ) $(TOPOLOGY_OBJ) $(BUILD)/$(CLIENT
 	@$(CC) $(CFLAGS) -o $@ $^
 
 app_simple_server: $(SERVER_OBJ) $(COMMON_OBJ) $(TOPOLOGY_OBJ) $(BUILD)/$(SERVER)/app_simple_server.o
-	@mkdir -p lab08
 	@echo $(orange)+ build $@$(end)
 	@$(CC) $(CFLAGS) -o $@ $^
 
 app_stress_client: $(CLIENT_OBJ) $(COMMON_OBJ) $(TOPOLOGY_OBJ) $(BUILD)/$(CLIENT)/app_stress_client.o
-	@mkdir -p lab08
 	@echo $(orange)+ build $@$(end)
 	@$(CC) $(CFLAGS) -o $@ $^
 
 app_stress_server: $(SERVER_OBJ) $(COMMON_OBJ) $(TOPOLOGY_OBJ) $(BUILD)/$(SERVER)/app_stress_server.o
-	@mkdir -p lab08
 	@echo $(orange)+ build $@$(end)
 	@$(CC) $(CFLAGS) -o $@ $^
 

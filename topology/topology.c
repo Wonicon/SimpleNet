@@ -5,6 +5,7 @@
 //创建日期: 2015年
 
 #include "topology.h"
+#include "constants.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -159,5 +160,16 @@ int *topology_getNbrArray()
 //如果指定两个节点之间没有直接链路, 返回INFINITE_COST.
 unsigned int topology_getCost(int fromNodeID, int toNodeID)
 {
-    return 0;
+    char buf[128], host_1[32], host_2[32];
+    unsigned cost;
+    FILE *fp = fopen(TOPOLOGY_FILE, "r");
+    while (fgets(buf, sizeof(buf), fp)) {
+        sscanf(buf, "%s%s%u", host_1, host_2, &cost);
+        int id_1 = topology_getNodeIDfromname(host_1);
+        int id_2 = topology_getNodeIDfromname(host_2);
+        if ((id_1 == fromNodeID && id_2 == toNodeID) || (id_2 == fromNodeID && id_1 == toNodeID)) {
+            return cost;
+        }
+    }
+    return INFINITE_COST;
 }
