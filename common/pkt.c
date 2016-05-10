@@ -3,7 +3,7 @@
  */
 
 #include "pkt.h"
-#include <stdio.h>
+#include <common.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -127,7 +127,12 @@ int recvpkt(sip_pkt_t *pkt, int conn)
             break;
         case PKTSTOP1:
             if (ch == '#') pkt_state = PKTSTOP2;
-            else return -1;
+            else {
+                // 错误的进入 STOP1 的恢复工作
+                *buf++ = '!';
+                *buf++ = ch;
+                pkt_state = PKTRECV;
+            };
             break;
         default:
             return -1;

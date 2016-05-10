@@ -114,6 +114,7 @@ int main() {
     stcp_client_send(sockfd, buffer, fileLen);
 	free(buffer);
 	//等待一段时间, 然后关闭连接.
+	log("prepare to disconnect");
 	sleep(WAITTIME);
 
 	if(stcp_client_disconnect(sockfd)<0) {

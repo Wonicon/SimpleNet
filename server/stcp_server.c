@@ -24,8 +24,6 @@
 // 服务器只有一个seghandler.
 //
 
-static int LOCAL_ID = 0;
-
 /**
  * @brief 内部日志信息，自动输出 tcb 相关内容。
  */
@@ -82,8 +80,6 @@ void stcp_server_init(int conn)
         tcbs[i] = NULL;
     }
     log("TCB pool has been initialized.");
-
-    LOCAL_ID = topology_getMyNodeID();
 
     // 启动接受网络层报文段的线程
     son_connection = conn;
@@ -280,17 +276,17 @@ static inline void send_ctrl(server_tcb_t *tcb, unsigned short type)
 /**
  * @brief 发送 DATAACK
  */
-static inline void send_dataack(unsigned int seq, unsigned short src_port, unsigned short dst_port)
+static inline void send_dataack(const server_tcb_t *tcb)
 {
     seg_t synack = {
-        .header.src_port = src_port,
-        .header.dest_port = dst_port,
+        .header.src_port = tcb->server_portNum,
+        .header.dest_port = tcb->client_portNum,
         .header.length = 0,
         .header.type = DATAACK,
-        .header.seq_num = seq,
+        .header.seq_num = tcb->expect_seqNum,
     };
-    if (sip_sendseg(son_connection, LOCAL_ID, &synack) == -1) {
-        log("sending ctrl to port %d failed", dst_port);
+    if (sip_sendseg(son_connection, tcb->client_nodeID, &synack) == -1) {
+        log("sending ctrl to port %d:%d failed", tcb->client_nodeID, tcb->client_portNum);
     }
 }
 
@@ -353,12 +349,12 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
                 pthread_cond_signal(tcb->condition);
                 pthread_mutex_unlock(tcb->mutex);
                 tcb->expect_seqNum += seg->header.length;
-                send_dataack(tcb->expect_seqNum, seg->header.dest_port, seg->header.src_port);
+                send_dataack(tcb);
                 seg->header.type = DATAACK;
                 LOG(tcb, "has sent %s (expected seq %d -> %d)", seg_type_s(seg), seg->header.seq_num, tcb->expect_seqNum);
             } else {
                 LOG(tcb, "expects seq num %d, but receives %d", tcb->expect_seqNum, seg->header.seq_num);
-                send_dataack(tcb->expect_seqNum, seg->header.dest_port, seg->header.src_port);
+                send_dataack(tcb);
             }
             break;
         default:

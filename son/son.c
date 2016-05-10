@@ -162,8 +162,10 @@ void *listen_to_neighbor(void *arg)
         } else if (ret != -1) {
             log("Received a pkt from %d", sip_pkt.header.src_nodeID);
             if (forwardpktToSIP(&sip_pkt, sip_conn) == -1) {
-                log("Forwarding to SIP failed");
+                warn("Forwarding to SIP failed");
             }
+        } else {
+            warn("pkt damage? check semantic collision with the markup!");
         }
     }
 

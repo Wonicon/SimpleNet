@@ -105,7 +105,8 @@ int main() {
 		log("recv string: %s from connection 2",buf2);
 	}
 
-	sleep(WAITTIME);
+    log("prepare to disconnect");
+    sleep(WAITTIME);
 
 	//关闭STCP服务器 
 	if(stcp_server_close(sockfd)<0) {

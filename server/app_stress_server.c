@@ -98,6 +98,7 @@ int main() {
 	free(buf);
 
 	//等待一会儿
+	log("prepare to disconnect");
 	sleep(WAITTIME);
 
 	//关闭STCP服务器

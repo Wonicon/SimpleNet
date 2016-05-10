@@ -26,8 +26,6 @@
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
 
-static int LOCAL_ID = 0;
-
 /**
  * @brief 内部日志信息，自动输出 tcb 相关内容。
  */
@@ -72,8 +70,6 @@ void stcp_client_init(int conn)
         tcbs[i] = NULL;
     }
     log("client TCB pool has been initialized.");
-
-    LOCAL_ID = topology_getMyNodeID();
 
     //启动接收网络层报文段的线程
     son_connection = conn;
@@ -246,10 +242,10 @@ void *sendbuf_timer(void *arg)
             // The time out for a data segment is smaller than the SENDBUF_POLLING_INTERVAL.
             // Therefore we can assume that these data hasn't been acked.
             LOG(tcb, "resends seq %d", curr->seg.header.seq_num);
-            sip_sendseg(son_connection, LOCAL_ID, &curr->seg);
+            sip_sendseg(son_connection, tcb->server_nodeID, &curr->seg);
         }
         for (; curr != NULL; curr = curr->next) {
-            sip_sendseg(son_connection, LOCAL_ID, &curr->seg);
+            sip_sendseg(son_connection, tcb->server_nodeID, &curr->seg);
             tcb->sendBufunSent = tcb->sendBufunSent->next;
         }
         if (tcb->sendBufHead == NULL) {
