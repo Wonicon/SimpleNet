@@ -5,16 +5,26 @@
 
 # SSH auto-login:
 # http://www.thegeekstuff.com/2008/11/3-steps-to-perform-ssh-login-without-password-using-ssh-keygen-ssh-copy-id/
+# or install sshpass (apt-get, etc.)
 
 if [ -z $1 ]; then
-    echo "Please input your stu-id"
+    echo "Usage: $0 stu-id [password]"
 else
     echo "Publishing the project to all $1's remote hosts"
+    if [ -z $2 ]; then
+        echo "No password provided, using ssh-key / interactive keyboard"
+    elif sshpass -V > /dev/null; then
+        echo "Using sshpass to pass password"
+        PRE="sshpass -p $2"
+    else
+        echo "Please install sshpass"
+        exit
+    fi
     for i in `seq 1 4`; do
         echo $i
         # Q: Why not just upload binaries?
         # A: GDB needs the original source code files.
-        rsync --archive --verbose * --exclude=.* --exclude=*.o --exclude=*.d b$1@csnetlab_$i.nju.edu.cn:~
+        $PRE rsync --archive --verbose * --exclude=.* --exclude=*.o --exclude=*.d b$1@csnetlab_$i.nju.edu.cn:~
     done
     echo done
 fi
