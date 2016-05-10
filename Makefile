@@ -1,5 +1,5 @@
 CC     := gcc
-CFLAGS := -Wall -Werror -Wfatal-errors -Wno-unused-result -std=gnu11 -g -Og -pthread -I ./common
+CFLAGS := -Wall -Werror -Wfatal-errors -Wno-unused-result -std=gnu11 -g -O0 -pthread -I ./common
 
 # Subdirectory definitions
 CLIENT := client

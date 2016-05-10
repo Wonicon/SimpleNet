@@ -4,6 +4,7 @@
 #include <string.h>
 #include <assert.h>
 
+#include "common.h"
 #include "../common/constants.h"
 #include "../topology/topology.h"
 #include "routingtable.h"
@@ -28,6 +29,7 @@ int routingtable_getnextnode(const routingtable_t *routingtable, int destNodeID)
             ent = ent->next;
         }
     }
+    log("dst %d cannot be routed", destNodeID);
     return -1;
 }
 

@@ -262,16 +262,16 @@ int stcp_server_close(int sockfd)
 /**
  * @brief 发送控制报文
  */
-static inline void send_ctrl(unsigned short type, unsigned short src_port, unsigned short dst_port)
+static inline void send_ctrl(server_tcb_t *tcb, unsigned short type)
 {
     seg_t synack = {
-        .header.src_port = src_port,
-        .header.dest_port = dst_port,
+        .header.src_port = tcb->server_portNum,
+        .header.dest_port = tcb->client_portNum,
         .header.length = 0,
         .header.type = type,
     };
-    if (sip_sendseg(son_connection, LOCAL_ID, &synack) == -1) {
-        log("sending ctrl to port %d failed", dst_port);
+    if (sip_sendseg(son_connection, tcb->client_nodeID, &synack) == -1) {
+        log("sending ctrl to %d:%d failed", tcb->client_nodeID, tcb->client_portNum);
     }
 }
 
@@ -304,7 +304,9 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
     case LISTENING:
         switch (seg->header.type) {
         case SYN:
-            send_ctrl(SYNACK, seg->header.dest_port, seg->header.src_port);
+            Assert(seg->header.dest_port == tcb->server_portNum, "need to set tcb port");
+            Assert(seg->header.src_port == tcb->client_portNum, "need to set tcb port");
+            send_ctrl(tcb, SYNACK);
             LOG(tcb, "has sent %s", seg_type_s(seg));
 
             // 这里上锁似乎没有什么作用 !?
@@ -322,11 +324,11 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
     case CONNECTED:
         switch (seg->header.type) {
         case SYN:
-            send_ctrl(SYNACK, seg->header.dest_port, seg->header.src_port);
+            send_ctrl(tcb, SYNACK);
             LOG(tcb, "receives duplicated SYN request");
             break;
         case FIN:
-            send_ctrl(FINACK, seg->header.dest_port, seg->header.src_port);
+            send_ctrl(tcb, FINACK);
             LOG(tcb, "has sent %s", seg_type_s(seg));
 
             // 这里上锁似乎没有什么作用 !?
@@ -365,7 +367,7 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
     case CLOSEWAIT:
         switch (seg->header.type) {
         case FIN:
-            send_ctrl(FINACK, seg->header.dest_port, seg->header.src_port);
+            send_ctrl(tcb, FINACK);
             LOG(tcb, "receives duplicated %s segment", seg_type_s(seg));
             break;
         default:

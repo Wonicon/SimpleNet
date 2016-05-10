@@ -8,24 +8,19 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>  // UNIX DOMAIN 接口
 #include <netinet/in.h>
-#include <string.h>
 #include <pthread.h>
 #include <arpa/inet.h>
-#include <netdb.h>
 #include <unistd.h>
 #include <signal.h>
-#include <sys/utsname.h>
-#include <assert.h>
 
-#include "../common/constants.h"
-#include "../common/pkt.h"
+#include "common.h"
+#include "constants.h"
+#include "pkt.h"
 #include "son.h"
 #include "../topology/topology.h"
-#include "neighbortable.h"
 
 //你应该在这个时间段内启动所有重叠网络节点上的SON进程
 #define SON_START_DELAY 1
@@ -278,11 +273,19 @@ int main()
                 }
             }
         } else {
-            for (int i = 0; i < nbrNum; i++) {
+            int i;
+            for (i = 0; i < nbrNum; i++) {
                 if (next_node == nt[i].nodeID) {
-                    sendpkt(&sip, nt[i].nodeID);
+                    if (sendpkt(&sip, nt[i].conn) > 0) {
+                        log("send to %d successfully", next_node);
+                    } else {
+                        log("send to %d failed", next_node);
+                    }
                     break;
                 }
+            }
+            if (i == nbrNum) {
+                log("no nbr %d found", next_node);
             }
         }
     }

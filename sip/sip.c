@@ -99,7 +99,7 @@ static void *routeupdate_daemon(void *arg)
 
     while (1) {
         select(0, NULL, NULL, NULL, &tv);
-        son_sendpkt(BROADCAST_NODEID, &pkt, son_conn);
+        //son_sendpkt(BROADCAST_NODEID, &pkt, son_conn);
     }
 
     return NULL;
@@ -205,11 +205,11 @@ int main(int argc, char *argv[])
     printf("SIP layer is starting, pls wait...\n");
 
     //初始化全局变量
-    nbr_cost_entry_t *nct = nbrcosttable_create();
-    dv_t *dv = dvtable_create();
-    pthread_mutex_t *dv_mutex = (pthread_mutex_t*)malloc(sizeof(pthread_mutex_t));
+    nct = nbrcosttable_create();
+    dv = dvtable_create();
+    dv_mutex = (pthread_mutex_t*)malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(dv_mutex,NULL);
-    routingtable_t *routingtable = routingtable_create();
+    routingtable = routingtable_create();
     routingtable_mutex = (pthread_mutex_t*)malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(routingtable_mutex,NULL);
     son_conn = -1;
@@ -239,7 +239,7 @@ int main(int argc, char *argv[])
 
     printf("SIP layer is started...\n");
     printf("waiting for routes to be established\n");
-    sleep(SIP_WAITTIME);
+    //sleep(SIP_WAITTIME);
     routingtable_print(routingtable);
 
     //等待来自STCP进程的连接

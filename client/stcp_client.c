@@ -98,6 +98,7 @@ int stcp_client_sock(unsigned int client_port)
             client_tcb_t *tcb = calloc(1, sizeof(*tcb));
 
             tcb->client_portNum = client_port;
+            tcb->client_nodeID = topology_getMyNodeID();
             tcb->server_portNum = (unsigned int)(-1);
             tcb->state = CLOSED;
 
@@ -129,16 +130,16 @@ int stcp_client_sock(unsigned int client_port)
 
 //发送报文
 static inline int
-send_ctrl(unsigned short type, unsigned short src_port, unsigned short dst_port)
+send_ctrl(client_tcb_t *tcb, unsigned short type)
 {
     seg_t syn = {
-        .header.src_port = src_port,
-        .header.dest_port = dst_port,
+        .header.src_port = tcb->client_portNum,
+        .header.dest_port = tcb->server_portNum,
         .header.length = 0,
         .header.type = type,
     };
-    if (sip_sendseg(son_connection, LOCAL_ID, &syn) == -1) {
-        log("sending ctrl to port %d failed", dst_port);
+    if (sip_sendseg(son_connection, tcb->server_nodeID, &syn) == -1) {
+        log("sending ctrl to %d:%d failed", tcb->server_nodeID, tcb->server_portNum);
         return -1;
     } else {
         return 1;
@@ -193,11 +194,12 @@ int stcp_client_connect(int sockfd, int nodeID, unsigned int server_port)
         return 0;
     } else {
         tcb->server_portNum = server_port;
+        tcb->server_nodeID = nodeID;
         tcb->state = SYNSENT;
         LOG(tcb, "shifts into %s", state_to_s(tcb));
 
         for (int i = 0; i < SYN_MAX_RETRY; i++) {
-            if (send_ctrl(SYN, tcb->client_portNum, server_port) == -1) {
+            if (send_ctrl(tcb, SYN) == -1) {
                 // 连接断开，直接退出。
                 tcb->state = CLOSED;
                 break;
@@ -366,7 +368,7 @@ int stcp_client_disconnect(int sockfd)
 
         //设置等待时间
         for (int i = 0; i < FIN_MAX_RETRY; i++) {
-            if (send_ctrl(FIN, tcb->client_portNum, tcb->server_portNum) == -1) {
+            if (send_ctrl(tcb, FIN) == -1) {
                 // 连接断开，直接退出。
                 tcb->state = CLOSED;
                 break;
