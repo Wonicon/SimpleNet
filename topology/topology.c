@@ -5,9 +5,8 @@
 //创建日期: 2015年
 
 #include "topology.h"
-#include "constants.h"
-#include <stdio.h>
-#include <stdlib.h>
+#include <constants.h>
+#include <common.h>
 #include <string.h>
 #include <assert.h>
 #include <ifaddrs.h>
@@ -25,9 +24,11 @@ int topology_getNodeIDfromname(char* hostname)
     // 获知h_addr_list[i]对应的具体类型
     char buf[128];
     sprintf(buf, "%s.nju.edu.cn", hostname);
-    struct hostent *host = gethostbyname(buf);  // 竟然是指向静态结构的指针，可怕
-    struct in_addr *in_addr = (void *)host->h_addr_list[0];
-    return htonl(in_addr->s_addr) & 0xFF;
+    struct addrinfo *info;
+    getaddrinfo(buf, NULL, NULL, &info);
+    struct in_addr in_addr = ((struct sockaddr_in *)info->ai_addr)->sin_addr;
+    freeaddrinfo(info);
+    return htonl(in_addr.s_addr) & 0xFF;
 }
 
 //这个函数返回指定的IP地址的节点ID.
@@ -89,6 +90,7 @@ int topology_getNbrNum()
             nbr++;
         }
     }
+    fclose(fp);
     return nbr;
 }
 
@@ -152,6 +154,7 @@ int *topology_getNbrArray()
     assert((end - nbrs) == nr_nbr);
     *end = 0;
 
+    fclose(fp);
     return nbrs;
 }
 
@@ -171,5 +174,6 @@ unsigned int topology_getCost(int fromNodeID, int toNodeID)
             return cost;
         }
     }
+    fclose(fp);
     return INFINITE_COST;
 }

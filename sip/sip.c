@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
 
     //初始化全局变量
     nct = nbrcosttable_create();
-    dv = dvtable_create();
+    dv = dvtable_create(nct);
     dv_mutex = (pthread_mutex_t*)malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(dv_mutex,NULL);
     routingtable = routingtable_create();
@@ -250,7 +250,7 @@ int main(int argc, char *argv[])
 
     log("SIP layer is started...");
     log("waiting for routes to be established");
-    //sleep(SIP_WAITTIME);
+    sleep(SIP_WAITTIME);
     routingtable_print(routingtable);
 
     //等待来自STCP进程的连接
