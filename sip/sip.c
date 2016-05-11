@@ -136,7 +136,8 @@ static void *routeupdate_daemon(void *arg)
     return NULL;
 }
 
-// 处理距离向量更新
+// 处理距离向量更新。
+// 注意该函数一次只针对一个邻居（和它的小伙伴们）
 void update_dv(sip_pkt_t *arg)
 {
     // 更新报文只从邻居处获得，所以可以从报文头里获取需要的信息。
@@ -157,11 +158,19 @@ void update_dv(sip_pkt_t *arg)
             log("%d -> %d -> %d: %d(old), %d(new)",
                 this_id, nbr_id, nbr_dv->nodeID, old_dst_cost, nbr_cost + nbr_dv->cost);
             if (old_dst_cost > nbr_cost + nbr_dv->cost) {
-                log("update dv and routing table");
+                log("update dv (%d => %d) and routing table (%d => %d)", old_dst_cost, nbr_cost + nbr_dv->cost,
+                    routingtable_getnextnode(routingtable, nbr_dv->nodeID), nbr_id);
                 pthread_mutex_lock(routingtable_mutex);
                 routingtable_setnextnode(routingtable, nbr_dv->nodeID, nbr_id);
                 pthread_mutex_unlock(routingtable_mutex);
                 dvtable_setcost(dv, nbr_dv->nodeID, nbr_cost + nbr_dv->cost);
+            }
+            else if (nbr_id == routingtable_getnextnode(routingtable, nbr_dv->nodeID)) {
+                // 我们暂时无条件接受当前下一跳的距离矢量更新，以期待结点失效导致的代价提升会反馈到更远的地方，
+                // 并从更宏观的场景里获得最小的距离矢量更新。
+                log("update next hop's dv from %d to %d regardless", old_dst_cost, nbr_cost + nbr_dv->cost);
+                dvtable_setcost(dv, nbr_dv->nodeID,
+                                (nbr_cost + nbr_dv->cost) > INFINITE_COST ? INFINITE_COST : nbr_cost + nbr_dv->cost);
             }
         }
         nbr_dv++;
