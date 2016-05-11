@@ -1,6 +1,5 @@
 #include <common.h>
 #include <constants.h>
-#include <pthread.h>
 #include "../topology/topology.h"
 #include "dvtable.h"
 
@@ -43,13 +42,10 @@ void dvtable_destroy(dv_t **dvtable)
 //更新当前结点的距离矢量，也被成功设置了,就返回1,否则返回-1.
 int dvtable_setcost(dv_t *dvt, int toNodeID, unsigned int cost)
 {
-    extern pthread_mutex_t *dv_mutex;
-    pthread_mutex_lock(dv_mutex);
     // 搜索元素
     for (int i = 0; i < MAX_NODE_NUM; i++) {
         if (dvt->dvEntry[i].nodeID == toNodeID) {
             dvt->dvEntry[i].cost = cost;
-            pthread_mutex_unlock(dv_mutex);
             return 1;
         }
     }
@@ -59,13 +55,11 @@ int dvtable_setcost(dv_t *dvt, int toNodeID, unsigned int cost)
         if (dvt->dvEntry[i].nodeID == -1) {
             dvt->dvEntry[i].nodeID = toNodeID;
             dvt->dvEntry[i].cost = cost;
-            pthread_mutex_unlock(dv_mutex);
             return 1;
         }
     }
 
     // miss 且表满
-    pthread_mutex_unlock(dv_mutex);
     return -1;
 }
 
@@ -74,23 +68,17 @@ int dvtable_setcost(dv_t *dvt, int toNodeID, unsigned int cost)
 //具体是谁的距离矢量，调用者应当清楚
 unsigned int dvtable_getcost(dv_t *dv, int toNodeID)
 {
-    extern pthread_mutex_t *dv_mutex;
-    pthread_mutex_lock(dv_mutex);
     for (int i = 0; i < MAX_NODE_NUM; i++) {
         if (dv->dvEntry[i].nodeID == toNodeID) {
-            pthread_mutex_unlock(dv_mutex);
             return dv->dvEntry[i].cost;
         }
     }
-    pthread_mutex_unlock(dv_mutex);
     return INFINITE_COST;
 }
 
 //这个函数打印距离矢量表的内容.
 void dvtable_print(dv_t *dv)
 {
-    extern pthread_mutex_t *dv_mutex;
-    pthread_mutex_lock(dv_mutex);
     for (int i = 0; i < MAX_NODE_NUM; i++) {
         dv_entry_t *ent = &dv->dvEntry[i];
         if (ent->nodeID != -1) {
@@ -98,5 +86,4 @@ void dvtable_print(dv_t *dv)
                    dv->nodeID, ent->nodeID, ent->cost);
         }
     }
-    pthread_mutex_unlock(dv_mutex);
 }

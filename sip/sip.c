@@ -4,33 +4,19 @@
 //
 //创建日期: 2015年
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <netinet/in.h>
-#include <string.h>
-#include <arpa/inet.h>
-#include <signal.h>
-#include <netdb.h>
-#include <assert.h>
-#include <sys/utsname.h>
-#include <pthread.h>
-#include <unistd.h>
-#include <sys/time.h> // 定时信号
-
 #include "common.h"
 #include "constants.h"
 #include "seg.h"
 #include "pkt.h"
-#include "../topology/topology.h"
 #include "sip.h"
-#include "nbrcosttable.h"
-#include "dvtable.h"
+#include "../topology/topology.h"
 #include "nbrcosttable.h"
 #include "dvtable.h"
 #include "routingtable.h"
+#include <sys/un.h>
+#include <signal.h>
+#include <pthread.h>
+#include <unistd.h>
 
 //SIP层等待这段时间让SIP路由协议建立路由路径. 
 #define SIP_WAITTIME 60
