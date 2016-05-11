@@ -42,7 +42,9 @@ void nt_destroy(nbr_entry_t *table)
     for (int i = 0; i < n; i++) {
         log("Disconnect to neighbor ID %d", table[i].nodeID);
         shutdown(table[i].conn, SHUT_RDWR);
-        close(table[i].conn);
+        if (table[i].conn != -1) {
+            close(table[i].conn);
+        }
     }
     return;
 }

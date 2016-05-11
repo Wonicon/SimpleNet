@@ -170,6 +170,13 @@ void *listen_to_neighbor(void *arg)
     }
 
     log("Exit listener on %d", nbr->nodeID);
+
+    // 将邻居的套接字无效，这样在一个邻居断开后，主线程转发 SIP 包的时候可以提前检查，不会因为 broken pipe 的原因挂掉
+    // 但是对该套接字的访问存在竞争情况，很难保证对该问题的完全回避。
+    // 对远程销毁的套接字零容忍，可能是由于设置了 REUSE 属性的缘故（没有超时等待）。
+    close(nbr->conn);
+    nbr->conn = -1;
+
     return NULL;
 }
 
@@ -278,7 +285,7 @@ int main()
         } else {
             int i;
             for (i = 0; i < nbrNum; i++) {
-                if (next_node == nt[i].nodeID) {
+                if (next_node == nt[i].nodeID && nt[i].conn != -1) {  // 检查套接字的有效性。
                     if (sendpkt(&sip, nt[i].conn) > 0) {
                         log("send to %d successfully", next_node);
                     } else {

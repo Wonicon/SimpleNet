@@ -45,13 +45,17 @@ void routingtable_setnextnode(routingtable_t *routingtable, int destNodeID, int 
     while (*pEntry) {
         if ((*pEntry)->destNodeID == destNodeID) {
             if ((*pEntry)->nextNodeID == nextNodeID) {
-                panic("No effects insert: dest %d, next %d", destNodeID, nextNodeID);
+                warn("No effects insert: dest %d, next %d", destNodeID, nextNodeID);
+                // 目前遇到这种情况是因为：
+                // 路由规则 A -> C -> B 在 B 挂掉后，DV(A,B) 变成 INF，
+                // 而 DV(C,B) 由于延迟等原因，还是旧值。
+                // A 收到 C 的更新后，就会出现原地更新的情况，这种情况是不可接受的，所以就这么 pass 过去
             }
             else {
                 warn("overriding insert: dest %d, next %d", destNodeID, nextNodeID);
                 (*pEntry)->nextNodeID = nextNodeID;
-                return;
             }
+            return;
         }
         pEntry = &(*pEntry)->next;
     }

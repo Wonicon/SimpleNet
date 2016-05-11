@@ -12,6 +12,7 @@
 typedef struct neighborcostentry {
 	unsigned int nodeID;	//邻居的节点ID
 	unsigned int cost;	    //到该邻居的直接链路代价
+	int is_updated;     // 标记是否收到过距离矢量更新报文，如果有，就置 1，并有一个定时线程统一清零以开始一个新的检测周期。
 } nbr_cost_entry_t;
 
 //这个函数动态创建邻居代价表并使用邻居节点ID和直接链路代价初始化该表.

@@ -56,7 +56,7 @@ static inline struct timeval ns_to_tv(int ns)
 /*******************************************************************/
 
 //这个端口号用于重叠网络中节点之间的互联, 你应该修改它为一个随机值以避免和其他同学的设置发生冲突
-#define CONNECTION_PORT 3000
+#define CONNECTION_PORT 3490
 
 //最大SIP报文数据长度: 1500 - sizeof(sip header)
 #define MAX_PKT_LEN 1488
@@ -83,6 +83,6 @@ static inline struct timeval ns_to_tv(int ns)
 #define BROADCAST_NODEID 9999
 
 //路由更新广播间隔, 以秒为单位
-#define ROUTEUPDATE_INTERVAL 10
+#define ROUTEUPDATE_INTERVAL 2
 
 #endif

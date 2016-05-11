@@ -19,13 +19,18 @@
 #include <unistd.h>
 
 //SIP层等待这段时间让SIP路由协议建立路由路径. 
-#define SIP_WAITTIME 60
+#define SIP_WAITTIME 5
+
+// 邻居生存时间，在这个间隔内没有收到 ROUTE_UPDATE 报文的话，
+// 就将邻居的距离矢量设置成 INFINITE_COST, 这样当其他邻居能提供次优路径时，可以被更新。
+#define ALIVE_THRESHOLD 10
 
 /**************************************************************/
 //声明全局变量
 /**************************************************************/
 int son_conn; 			//到重叠网络的连接
 int stcp_conn;			//到STCP的连接
+int nr_nbrs;  // 邻居结点数（一开始为了 KISS 原则，这些数据我都是用 topo 的 API 临时获取的，然而这个代码的 overhead 一点也不 KISS）
 nbr_cost_entry_t* nct;			//邻居代价表
 dv_t* dv;				//距离矢量表
 pthread_mutex_t* dv_mutex;		//距离矢量表互斥量
@@ -61,6 +66,43 @@ int connectToSON()
     return fd;
 }
 
+// 这个线程每隔 ALIVE_THRESHOLD 时间就检查当前的邻居表有没有
+// 更新过距离矢量信息，如果有，就清空 flag，为下次检查做准备。
+// 如果没有，即上次清空的 flag 没有因收到距离矢量而设置，则将邻
+// 居的距离矢量设置成 INFINITE_COST，既表明链路断开，也为能够
+// 更新成其他节点的路由提供条件。
+static void *alive_check(void *arg)
+{
+    while (nr_nbrs) {
+        struct timeval tv = { ALIVE_THRESHOLD, 0 };
+        select(0, NULL, NULL, NULL, &tv);
+
+        // 要上锁，不然中间这不知道什么时候就会被打断……
+        log("checker awake");
+        pthread_mutex_lock(dv_mutex);
+        pthread_mutex_lock(routingtable_mutex);
+        for (int i = 0; i < nr_nbrs; i++) {
+            if (!nct[i].is_updated) {
+                warn("%d is dead", nct[i].nodeID);
+                nct[i].cost = INFINITE_COST;
+                dvtable_setcost(dv, nct[i].nodeID, INFINITE_COST);
+                // 所有以这个挂掉的邻居为 next hop 的结点的 dv 都要设置成 INFINITE_COST
+                for (int j = 0; j < MAX_NODE_NUM; j++) {
+                    if (dv->dvEntry[j].nodeID != -1 &&
+                            routingtable_getnextnode(routingtable, dv->dvEntry[j].nodeID) == nct[i].nodeID) {
+                        dv->dvEntry[j].cost = INFINITE_COST;
+                    }
+                }
+            }
+            nct[i].is_updated = 0;
+        }
+        pthread_mutex_unlock(routingtable_mutex);
+        pthread_mutex_unlock(dv_mutex);
+    }
+
+    return NULL;
+}
+
 //这个线程每隔ROUTEUPDATE_INTERVAL时间发送路由更新报文.
 //路由更新报文包含这个节点的距离矢量.
 //广播是通过设置SIP报文头中的dest_nodeID为BROADCAST_NODEID,并通过son_sendpkt()发送报文来完成的.
@@ -84,6 +126,7 @@ static void *routeupdate_daemon(void *arg)
         pthread_mutex_lock(dv_mutex);
         memcpy(pkt.data, dv->dvEntry, pkt.header.length);
         pthread_mutex_unlock(dv_mutex);
+        log("send update pakcet...");
         if (son_sendpkt(BROADCAST_NODEID, &pkt, son_conn) < 0) {
             break;
         }
@@ -111,7 +154,7 @@ void update_dv(sip_pkt_t *arg)
     for (int i = 0; i < MAX_NODE_NUM; i++) {
         if (nbr_dv->nodeID != -1 && nbr_dv->nodeID != this_id) {  // A valid element
             unsigned old_dst_cost = dvtable_getcost(dv, nbr_dv->nodeID);
-            log("%d -> %d -> %d: %d(orig), %d(new)",
+            log("%d -> %d -> %d: %d(old), %d(new)",
                 this_id, nbr_id, nbr_dv->nodeID, old_dst_cost, nbr_cost + nbr_dv->cost);
             if (old_dst_cost > nbr_cost + nbr_dv->cost) {
                 log("update dv and routing table");
@@ -138,6 +181,12 @@ void *pkthandler(void *arg)
         if (pkt.header.type == ROUTE_UPDATE) {
             log("route update!");
             Assert(pkt.header.dest_nodeID == 0, "unexpected");
+            for (int i = 0; i < nr_nbrs; i++) {
+                if (nct[i].nodeID == pkt.header.src_nodeID) {
+                    log("%d is alive", nct[i].nodeID);
+                    nct[i].is_updated = 1;
+                }
+            }
             update_dv(&pkt);
         }
         else if (topology_getMyNodeID() == pkt.header.dest_nodeID) {  // TODO save my id
@@ -244,6 +293,7 @@ int main(int argc, char *argv[])
     log("SIP layer is starting, pls wait...");
 
     //初始化全局变量
+    nr_nbrs = topology_getNbrNum();
     nct = nbrcosttable_create();
     dv = dvtable_create(nct);
     dv_mutex = (pthread_mutex_t*)malloc(sizeof(pthread_mutex_t));
@@ -276,8 +326,13 @@ int main(int argc, char *argv[])
     pthread_t routeupdate_thread;
     pthread_create(&routeupdate_thread,NULL,routeupdate_daemon,(void*)0);
 
+    // 启动邻居判活线程
+    pthread_t nbr_alive_thread;
+    pthread_create(&nbr_alive_thread, NULL, alive_check, NULL);
+
     log("SIP layer is started...");
     log("waiting for routes to be established");
+
 
     sleep(SIP_WAITTIME);
     puts("===========================");
