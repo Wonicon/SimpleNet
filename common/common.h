@@ -38,23 +38,25 @@ static inline const char *timestamp(char *s, size_t max)
         exit(EXIT_FAILURE);     \
     } while (0)
 
-#define panic(fmt, ...)                                       \
-    do {                                                      \
-        fprintf(stderr, RED fmt NORMAL "\n", ## __VA_ARGS__); \
-        exit(EXIT_FAILURE);                                   \
+#define panic(fmt, ...)                                                               \
+    do {                                                                              \
+        char __s[32];                                                                 \
+        fprintf(stderr, RED "[%s,%s:%d] " fmt NORMAL "\n",                            \
+                timestamp(__s, sizeof(__s)), __FUNCTION__, __LINE__, ## __VA_ARGS__); \
+        exit(EXIT_FAILURE);                                                           \
     } while (0)
 
-#define log(fmt, ...)                                                               \
-    do {                                                                            \
-        char __s[32];                                                               \
-        fprintf(stderr, GREEN "[%s,%s:%d] " NORMAL fmt "\n",                     \
+#define log(fmt, ...)                                                                 \
+    do {                                                                              \
+        char __s[32];                                                                 \
+        fprintf(stderr, GREEN "[%s,%s:%d] " NORMAL fmt "\n",                          \
                 timestamp(__s, sizeof(__s)), __FUNCTION__, __LINE__, ## __VA_ARGS__); \
     } while (0)
 
-#define warn(fmt, ...)                                                              \
-    do {                                                                            \
-        char __s[32];                                                               \
-        fprintf(stderr, RED "[%s,%s:%d] " NORMAL fmt "\n",                       \
+#define warn(fmt, ...)                                                                \
+    do {                                                                              \
+        char __s[32];                                                                 \
+        fprintf(stderr, RED "[%s,%s:%d] " NORMAL fmt "\n",                            \
                 timestamp(__s, sizeof(__s)), __FUNCTION__, __LINE__, ## __VA_ARGS__); \
     } while (0)
 

@@ -78,7 +78,7 @@ static void *routeupdate_daemon(void *arg)
 
     while (1) {
         struct timeval tv;
-        tv.tv_sec = 10;
+        tv.tv_sec = ROUTEUPDATE_INTERVAL;
         tv.tv_usec = 0;
         select(0, NULL, NULL, NULL, &tv);
         pthread_mutex_lock(dv_mutex);
@@ -104,14 +104,26 @@ void update_dv(sip_pkt_t *arg)
     int nbr_cost = nbrcosttable_getcost(nct, nbr_id);
     dv_entry_t *nbr_dv = (void *)pkt->data;
 
+    Assert(nbr_id != this_id, "Oops, send to self!?");
+
+    pthread_mutex_lock(dv_mutex);
     // dv(this, node) = min { nbr_cost + dv(nbr, node) }
     for (int i = 0; i < MAX_NODE_NUM; i++) {
-        if (nbr_dv->nodeID != -1) {  // A valid element
+        if (nbr_dv->nodeID != -1 && nbr_dv->nodeID != this_id) {  // A valid element
+            unsigned old_dst_cost = dvtable_getcost(dv, nbr_dv->nodeID);
             log("%d -> %d -> %d: %d(orig), %d(new)",
-                this_id, nbr_id, nbr_dv->nodeID, dvtable_getcost(dv, nbr_dv->nodeID), nbr_cost + nbr_dv->cost);
+                this_id, nbr_id, nbr_dv->nodeID, old_dst_cost, nbr_cost + nbr_dv->cost);
+            if (old_dst_cost > nbr_cost + nbr_dv->cost) {
+                log("update dv and routing table");
+                pthread_mutex_lock(routingtable_mutex);
+                routingtable_setnextnode(routingtable, nbr_dv->nodeID, nbr_id);
+                pthread_mutex_unlock(routingtable_mutex);
+                dvtable_setcost(dv, nbr_dv->nodeID, nbr_cost + nbr_dv->cost);
+            }
         }
         nbr_dv++;
     }
+    pthread_mutex_unlock(dv_mutex);
 }
 
 //这个线程处理来自SON进程的进入报文. 它通过调用son_recvpkt()接收来自SON进程的报文.
@@ -138,7 +150,9 @@ void *pkthandler(void *arg)
             }
         }
         else {
+            pthread_mutex_lock(routingtable_mutex);
             int next_id = routingtable_getnextnode(routingtable, pkt.header.dest_nodeID);
+            pthread_mutex_unlock(routingtable_mutex);
             log("forward: seg(%d -> %d) next hop %d", pkt.header.src_nodeID, pkt.header.dest_nodeID, next_id);
             if (son_sendpkt(next_id, &pkt, son_conn) < 0) {
                 break; // 不可接受 SON 的异常
@@ -201,7 +215,9 @@ static void waitSTCP()
         seg_t *segptr = (void *)pkt.data;  // 直接往 data 段里写，减少一次结构体拷贝
         while (getsegToSend(stcp_conn, &dst_id, segptr) > 0) {
             // 初始路由
+            pthread_mutex_lock(routingtable_mutex);
             int next_id = routingtable_getnextnode(routingtable, dst_id);
+            pthread_mutex_unlock(routingtable_mutex);
             if (next_id != -1) {
                 log("stcp segment to %d, forwarding to %d", dst_id, next_id);
                 // 准备网络层协议头，按有效数据长度标记长度并拷贝数据
@@ -253,8 +269,8 @@ int main(int argc, char *argv[])
     }
 
     //启动线程处理来自SON进程的进入报文
-    //pthread_t pkt_handler_thread;
-    //pthread_create(&pkt_handler_thread,NULL,pkthandler,(void*)0);
+    pthread_t pkt_handler_thread;
+    pthread_create(&pkt_handler_thread,NULL,pkthandler,(void*)0);
 
     //启动路由更新线程
     pthread_t routeupdate_thread;
@@ -262,18 +278,18 @@ int main(int argc, char *argv[])
 
     log("SIP layer is started...");
     log("waiting for routes to be established");
-    pkthandler(NULL);
 
-    //sleep(SIP_WAITTIME);
-    while (1) {
-        puts("===========================");
-        routingtable_print(routingtable);
-        dvtable_print(dv);
-        puts("===========================");
-    }
+    sleep(SIP_WAITTIME);
+    puts("===========================");
+    pthread_mutex_lock(routingtable_mutex);
+    routingtable_print(routingtable);
+    pthread_mutex_unlock(routingtable_mutex);
+    pthread_mutex_lock(dv_mutex);
+    dvtable_print(dv);
+    pthread_mutex_unlock(dv_mutex);
+    puts("===========================");
 
     //等待来自STCP进程的连接
     log("waiting for connection from STCP process");
     waitSTCP();
-
 }

@@ -48,14 +48,16 @@ void routingtable_setnextnode(routingtable_t *routingtable, int destNodeID, int 
                 panic("No effects insert: dest %d, next %d", destNodeID, nextNodeID);
             }
             else {
+                warn("overriding insert: dest %d, next %d", destNodeID, nextNodeID);
                 (*pEntry)->nextNodeID = nextNodeID;
                 return;
             }
         }
         pEntry = &(*pEntry)->next;
     }
+    log("create new routing entry: dest %d, next %d",destNodeID, nextNodeID);
     *pEntry = calloc(1, sizeof(**pEntry));
-    (*pEntry)->destNodeID = nextNodeID;
+    (*pEntry)->destNodeID = destNodeID;
     (*pEntry)->nextNodeID = nextNodeID;
 }
 
