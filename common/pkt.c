@@ -130,8 +130,14 @@ int recvpkt(sip_pkt_t *pkt, int conn)
             else {
                 // 错误的进入 STOP1 的恢复工作
                 *buf++ = '!';
-                *buf++ = ch;
-                pkt_state = PKTRECV;
+                // 注意处理 "!!#" 这样的序列
+                if (ch != '!') {
+                    *buf++ = ch;
+                    pkt_state = PKTRECV;
+                }
+                else {
+                    pkt_state = PKTSTOP1;
+                }
             };
             break;
         default:
