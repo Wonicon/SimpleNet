@@ -32,7 +32,17 @@ typedef struct client_tcb {
     unsigned int client_nodeID;     //客户端节点ID, 类似IP地址, 本实验未使用
     unsigned int client_portNum;    //客户端端口号
     unsigned int state;     	//客户端状态
+
     unsigned int next_seqNum;       //新段准备使用的下一个序号
+	unsigned int expect_seqNum;     //期待收到的数据序号
+
+	//接收数据段相关
+	char* recvBuf;                  //指向接收缓冲区的指针
+	unsigned int usedBufLen;        //接收缓冲区中已接收数据的大小
+	pthread_mutex_t *mutex;         //指向一个互斥量的指针，该互斥量用于对接收缓冲区的访问
+	pthread_cond_t *condition;      //用于唤醒阻塞API的条件变量
+
+	//发送数据段相关
     pthread_mutex_t* bufMutex;      //发送缓冲区互斥量
     unsigned int send_time;         // Record the send time, increased by sendTimer
     segBuf_t* sendBufHead;          //发送缓冲区头
