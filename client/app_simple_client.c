@@ -119,6 +119,20 @@ int main(int argc, char *argv[])
         printf("send string:%s to connection 2\n", mydata2);
     }
 
+	sleep(WAITTIME);
+	//接收字符串
+	char buf1[6];
+	char buf2[7];
+	int j;
+	for(j = 0; j < 5; j++) {
+		stcp_client_recv(sockfd, buf1, 6);
+		printf("recv string: %s from connection 1\n", buf1);
+	}
+	for(j = 0; j < 5; j++) {
+		stcp_client_recv(sockfd, buf2, 7);
+		printf("recv string: %s from connection 2\n", buf2);
+	}
+
     //等待一段时间, 然后关闭连接
     sleep(WAITTIME);
 

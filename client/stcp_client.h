@@ -95,6 +95,7 @@ int stcp_client_connect(int socked, unsigned int server_port);
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
 
+int stcp_client_recv(int sockfd, void* data, unsigned int length);
 int stcp_client_send(int sockfd, void* data, unsigned int length);
 
 // 这个函数发送数据给STCP服务器. 你不需要在本实验中实现它。

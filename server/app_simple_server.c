@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
     //监听并接受来自STCP客户端的连接
-    stcp_server_accept(sockfd2);
+	stcp_server_accept(sockfd2);
 
     char buf1[6];
     char buf2[7];
@@ -133,6 +133,20 @@ int main(int argc, char *argv[])
         stcp_server_recv(sockfd2, buf2, 7);
         printf("recv string: %s from connection 2\n", buf2);
     }
+
+	sleep(WAITTIME);
+	//发送字符串
+	char mydata[6] = "hello";
+	int j;
+	for(j = 0; j < 5; j++) {
+		stcp_server_send(sockfd, mydata, 6);
+		printf("send string:%s to connection 1\n", mydata);
+	}
+	char mydata2[7] = "byebye";
+	for(j = 0; j < 5; j++) {
+		stcp_server_send(sockfd2, mydata2, 7);
+		printf("send string:%s to connection 2\n", mydata2);
+	}
 
     sleep(WAITTIME);
 

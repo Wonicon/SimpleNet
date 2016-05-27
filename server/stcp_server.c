@@ -168,6 +168,107 @@ int stcp_server_accept(int sockfd)
     }
 }
 
+void *sendbuf_timer(void *arg) {
+	server_tcb_t *tcb = arg;
+	LOG(tcb, "server sendbuf_timer started");
+	for(;;) {
+		struct timeval tv = ns_to_tv(SENDBUF_POLLING_INTERVAL);
+		select(0, NULL, NULL, NULL, &tv);
+
+		pthread_mutex_lock(tcb->bufMutex);
+		segBuf_t *curr = tcb->sendBufHead;
+		for(; curr != tcb->sendBufunSent; curr = curr->next) {
+			LOG(tcb, "resends seq %d", curr->seg.header.seq_num);
+			sip_sendseg(son_connection, &curr->seg);
+		}
+		for(; curr != NULL; curr = curr->next) {
+			sip_sendseg(son_connection, &curr->seg);
+			tcb->sendBufunSent = tcb->sendBufunSent->next;
+		}
+		if(tcb->sendBufHead == NULL) {
+			LOG(tcb, "send buffer timer exits");
+			tcb->sendBufTail = NULL;
+			pthread_mutex_unlock(tcb->bufMutex);
+			return arg;
+		}
+		pthread_mutex_unlock(tcb->bufMutex);
+	}
+	return arg;
+}
+
+//发送数据给STCP客户端
+//这个函数使用套接字ID找到TCB表中的条目
+//然后它使用提供的数据创建segBuf,将它附加到发送缓冲区链表中。
+//如果发送缓冲区在插入数据之前为空，一个名为sendbuf_timer的线程就会启动
+//每隔SENDBUF_ROLLING_INTERVAL时间查询发送缓冲区以检查是否有超时事件发生
+//这个函数在成功时返回1，否则返回-1
+int stcp_server_send(int sockfd, void *data, unsigned int length) {
+	server_tcb_t *tcb = tcbs[sockfd];
+	if(tcb == NULL) {
+		log(RED "The socket %d is invalid" NORMAL, sockfd);
+		return -1;
+	} else if(tcb->state != CONNECTED) {
+		LOG(tcb, "is under %s, and cannot send data", state_to_s(tcb));
+		return -1;
+	}
+
+	unsigned int rest_len = 0;
+	char *rest_data = NULL;
+	if(length > MAX_SEG_LEN) {
+		rest_len = length - MAX_SEG_LEN;
+		rest_data = (char *)data + MAX_SEG_LEN;
+		length = MAX_SEG_LEN;
+	}
+
+	//Send buffer can be set up without locking
+	segBuf_t *sendbuf = calloc(1, sizeof(*sendbuf));
+	sendbuf->next = NULL;
+	sendbuf->sentTime = tcb->send_time;
+	sendbuf->seg.header.type = DATA;
+	sendbuf->seg.header.src_port = tcb->server_portNum;
+	sendbuf->seg.header.dest_port = tcb->server_portNum;
+	sendbuf->seg.header.length = length;
+	sendbuf->seg.header.seq_num = tcb->next_seqNum;
+	tcb->next_seqNum += length;
+	memcpy(sendbuf->seg.data, data, length);
+
+	checksum(&sendbuf->seg);
+
+	pthread_mutex_lock(tcb->bufMutex);
+	while (tcb->unAck_segNum == GBN_WINDOW) {
+		LOG(tcb, "wait window clear");
+		pthread_cond_wait(tcb->bufCond, tcb->bufMutex);
+		LOG(tcb, "wake up with unAck_segNum %d", tcb->unAck_segNum);
+	}
+	LOG(tcb, "adds send buffer under window size %d", tcb->unAck_segNum);
+	tcb->unAck_segNum++;
+	if(tcb->sendBufTail == NULL) {
+		LOG(tcb, "This is the first send buffer");
+		Assert(tcb->sendBufHead == NULL, "header should be NULL as tail is so."); // This causes tail to be NULL.
+		Assert(tcb->sendBufunSent == NULL, "unsent should be NULL as tail is so");  // This one runs into NULL at first.
+		tcb->sendBufTail = sendbuf;
+		tcb->sendBufHead = tcb->sendBufTail;
+		tcb->sendBufunSent = tcb->sendBufHead;
+		pthread_t tid;
+		pthread_create(&tid, NULL, sendbuf_timer, tcb);
+	} else {
+		tcb->sendBufTail->next = sendbuf;
+		tcb->sendBufTail = sendbuf;
+		if(tcb->sendBufunSent == NULL) {
+			LOG(tcb, "Send buffers are all sent but not acked yet");
+			Assert(tcb->sendBufHead, "header should not be NULL as tail as so");
+			tcb->sendBufunSent = sendbuf;
+		}
+	}
+	pthread_mutex_unlock(tcb->bufMutex);
+	
+	if(rest_len != 0) {
+		return stcp_server_send(sockfd, rest_data, rest_len);
+	} else {
+		return 1;
+	}
+}
+
 /**
  * @brief 接收来自STCP客户端的数据
  *

@@ -333,6 +333,27 @@ int stcp_client_send(int sockfd, void *data, unsigned int length)
     }
 }
 
+//接收来自STCP客户端的数据
+//信号/控制信息（如SYN，SYNACK等）则是双向传递，这个函数每隔RECVBUF_ROLLING_INTERVAL时间就查询接收缓冲区，直到等待的数据到达，他然后存储数据并返回1，如果这个函数失败则返回-1
+int stcp_client_recv(int sockfd, void *buf, unsigned int length) {
+	client_tcb_t *tcb = tcbs[sockfd];
+	if(tcb == NULL) {
+		log(RED "Invalid socket %d" NORMAL, sockfd);
+		return -1;
+	}
+
+	pthread_mutex_lock(tcb->mutex);
+	while(tcb->usedBufLen < length) {
+		// Wait for enough data.
+		pthread_cond_wait(tcb->condition, tcb->mutex);
+	}
+	memcpy(buf, tcb->recvBuf, length);
+	memmove(tcb->recvBuf, tcb->recvBuf + length, tcb->usedBufLen - length);
+	tcb->usedBufLen -= length;
+	pthread_mutex_unlock(tcb->mutex);
+	return 1;
+}
+
 // 断开到STCP服务器的连接
 //
 // 这个函数用于断开到服务器的连接. 它以套接字ID作为输入参数. 套接字ID用于找到TCB表中的条目.

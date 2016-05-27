@@ -95,6 +95,7 @@ int stcp_server_accept(int sockfd);
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
 
+int stcp_server_send(int sockfd, void* buf, unsigned int length);
 int stcp_server_recv(int sockfd, void* buf, unsigned int length);
 
 // 这个函数接收来自STCP客户端的数据. 你不需要在本实验中实现它.
