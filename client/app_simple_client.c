@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
 		printf("recv string: %s from connection 1\n", buf1);
 	}
 	for(j = 0; j < 5; j++) {
-		stcp_client_recv(sockfd, buf2, 7);
+		stcp_client_recv(sockfd2, buf2, 7);
 		printf("recv string: %s from connection 2\n", buf2);
 	}
 

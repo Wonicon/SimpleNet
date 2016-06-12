@@ -109,10 +109,22 @@ int stcp_server_sock(unsigned int server_port)
 
             // Init mutex
             tcb->mutex = malloc(sizeof(*tcb->mutex));
+			tcb->bufMutex = malloc(sizeof(*tcb->bufMutex));
             pthread_mutex_init(tcb->mutex, NULL);
+			pthread_mutex_init(tcb->bufMutex, NULL);
 
             tcb->condition = malloc(sizeof(*tcb->condition));
             pthread_cond_init(tcb->condition, NULL);
+			tcb->bufCond = malloc(sizeof(*tcb->bufCond));
+			pthread_cond_init(tcb->bufCond, NULL);
+
+			// init fields related to send
+			tcb->sendBufHead = NULL;
+			tcb->sendBufTail = NULL;
+			tcb->sendBufunSent = NULL;
+			tcb->next_seqNum = 0;
+			tcb->unAck_segNum = 0;
+			tcb->send_time = 0;
 
             tcb->recvBuf = calloc(RECEIVE_BUF_SIZE, sizeof(*tcb->recvBuf));
 
@@ -226,7 +238,7 @@ int stcp_server_send(int sockfd, void *data, unsigned int length) {
 	sendbuf->sentTime = tcb->send_time;
 	sendbuf->seg.header.type = DATA;
 	sendbuf->seg.header.src_port = tcb->server_portNum;
-	sendbuf->seg.header.dest_port = tcb->server_portNum;
+	sendbuf->seg.header.dest_port = tcb->client_portNum;
 	sendbuf->seg.header.length = length;
 	sendbuf->seg.header.seq_num = tcb->next_seqNum;
 	tcb->next_seqNum += length;
@@ -388,6 +400,32 @@ static inline void send_dataack(unsigned int seq, unsigned short src_port, unsig
     }
 }
 
+static void handle_dataack(server_tcb_t *tcb, seg_t *seg)
+{
+    // TODO Check seq
+    Assert(seg->header.type == DATAACK, "Unexpected data type for this handler.");
+    pthread_mutex_lock(tcb->bufMutex);
+    while (tcb->sendBufHead != tcb->sendBufunSent) {
+        //LOG(tcb, "buffered seq %d, expected seq %d", tcb->sendBufHead->seg.header.seq_num, seg->header.seq_num);
+        if (tcb->sendBufHead->seg.header.seq_num < seg->header.seq_num) {
+            segBuf_t *tmp = tcb->sendBufHead;
+            LOG(tcb, "release acked send buffer (seq num %d)", tmp->seg.header.seq_num);
+            tcb->sendBufHead = tcb->sendBufHead->next;
+            tcb->unAck_segNum--;
+            free(tmp);
+        } else {
+            break;
+        }
+    }
+    if (tcb->sendBufHead == NULL) {
+        tcb->sendBufTail = NULL;
+    }
+    if (tcb->unAck_segNum < GBN_WINDOW) {
+        pthread_cond_signal(tcb->bufCond);
+    }
+    pthread_mutex_unlock(tcb->bufMutex);
+}
+
 /**
  * @brief TCB 状态机
  */
@@ -406,9 +444,12 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
             // 这里上锁似乎没有什么作用 !?
             pthread_mutex_lock(tcb->mutex);
             tcb->state = CONNECTED;
+			LOG(tcb, "tcb->client_portNum = %d", tcb->client_portNum);
             pthread_cond_signal(tcb->condition);
             pthread_mutex_unlock(tcb->mutex);
 
+			tcb->client_portNum = seg->header.src_port;
+			LOG(tcb, "tcb->client_portNum = %d", tcb->client_portNum);
             LOG(tcb, "enters state %s", state_to_s(tcb));
             break;
         default:
@@ -432,6 +473,13 @@ static void server_fsm(server_tcb_t *tcb, seg_t *seg)
             pthread_mutex_unlock(tcb->mutex);
 
             LOG(tcb, "enters state %s", state_to_s(tcb));
+            break;
+	case DATAACK:
+            // As stcp_client_send() is non-blocking, so the client may immediately get into FINWAIT state.
+            // This state won't stay long enough to handle all DATAACK in a high missing rate.
+            // If DATAACK segment is missed and a FINACK arrives, the client will release the send buffers,
+            // which may result in unexpected behaviors.
+            handle_dataack(tcb, seg);
             break;
         case DATA:
             if (tcb->expect_seqNum == seg->header.seq_num) {

@@ -97,10 +97,15 @@ int stcp_client_sock(unsigned int client_port)
             tcb->state = CLOSED;
 
             //init mutex
+			tcb->mutex = malloc(sizeof(*tcb->mutex));
             tcb->bufMutex = malloc(sizeof(*tcb->bufMutex));
             pthread_mutex_init(tcb->bufMutex, NULL);
+			pthread_mutex_init(tcb->mutex, NULL);
+
             tcb->bufCond = malloc(sizeof(*tcb->bufCond));
             pthread_cond_init(tcb->bufCond, NULL);
+			tcb->condition = malloc(sizeof(*tcb->condition)); 
+			pthread_cond_init(tcb->condition, NULL);
 
             // init fields related to send
             tcb->sendBufHead = NULL;
@@ -109,6 +114,8 @@ int stcp_client_sock(unsigned int client_port)
             tcb->next_seqNum = 0;
             tcb->unAck_segNum = 0;
             tcb->send_time = 0;
+
+			tcb->recvBuf = calloc(RECEIVE_BUF_SIZE, sizeof(*tcb->recvBuf)); 
 
             log("Assign socket %d to port %d", i, client_port);
             tcbs[i] = tcb;
@@ -342,6 +349,7 @@ int stcp_client_recv(int sockfd, void *buf, unsigned int length) {
 		return -1;
 	}
 
+	//log("here");
 	pthread_mutex_lock(tcb->mutex);
 	while(tcb->usedBufLen < length) {
 		// Wait for enough data.
@@ -445,6 +453,20 @@ int stcp_client_close(int sockfd)
     return 0;
 }
 
+static inline void send_dataack(unsigned int seq, unsigned short src_port, unsigned short dst_port)
+{
+    seg_t synack = {
+        .header.src_port = src_port,
+        .header.dest_port = dst_port,
+        .header.length = 0,
+        .header.type = DATAACK,
+        .header.seq_num = seq,
+    };
+    if (sip_sendseg(son_connection, &synack) == -1) {
+        log("sending ctrl to port %d failed", dst_port);
+    }
+}
+
 /**
  * @brief Modify send buffer list according to the DATAACK segment.
  * @param tcb The tcb to which the send buffer list belongs.
@@ -499,6 +521,27 @@ static void client_fsm(client_tcb_t *tcb, seg_t *seg)
         break;
     case CONNECTED:
         switch (seg->header.type) {
+	case DATA:
+            if (tcb->expect_seqNum == seg->header.seq_num) {
+                pthread_mutex_lock(tcb->mutex);
+                if (tcb->usedBufLen + seg->header.length > RECEIVE_BUF_SIZE) {
+                    LOG(tcb, "seq %d exceeds the recv buffer size, discarded", seg->header.seq_num);
+                    pthread_mutex_unlock(tcb->mutex);
+                    break;
+                }
+                memcpy(tcb->recvBuf + tcb->usedBufLen, seg->data, seg->header.length);
+                tcb->usedBufLen += seg->header.length;
+                pthread_cond_signal(tcb->condition);
+                pthread_mutex_unlock(tcb->mutex);
+                tcb->expect_seqNum += seg->header.length;
+                send_dataack(tcb->expect_seqNum, seg->header.dest_port, seg->header.src_port);
+                seg->header.type = DATAACK;
+                LOG(tcb, "has sent %s (expected seq %d -> %d)", seg_type_s(seg), seg->header.seq_num, tcb->expect_seqNum);
+            } else {
+                LOG(tcb, "expects seq num %d, but receives %d", tcb->expect_seqNum, seg->header.seq_num);
+                send_dataack(tcb->expect_seqNum, seg->header.dest_port, seg->header.src_port);
+            }
+            break;
         case DATAACK:
             handle_dataack(tcb, seg);
             break;
